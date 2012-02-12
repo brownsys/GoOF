@@ -13,8 +13,8 @@ type Protocol uint8
 const ProtocolTCP = 8
 
 type IPHeader struct {
-  VersionIHL uint8
-  TOS uint8 // version and IHL and TOS fields
+  VersionIHL uint8 // version and IHL fields
+  TOS uint8 
   TotalLength uint16
   Identification uint16
   FlagsFragoffset uint16

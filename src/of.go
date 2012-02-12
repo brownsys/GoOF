@@ -2,6 +2,11 @@ package of
 
 import (
   "io"
+  "os"
+  "encoding/binary"
+  "bytes"
+  "fmt"
+  "packets"
 )
 
 type Sized interface {
@@ -9,8 +14,16 @@ type Sized interface {
 }
 
 type Read interface {
-  /* Returns self type */
-  Read(header OfpHeader, body io.Reader) interface{}
+  Read(header *OfpHeader, body []byte) os.Error
+}
+
+type Write interface {
+  Write(w io.Writer) os.Error
+}
+
+type Action interface {
+  Write
+  ActionLen() uint16
 }
 
 /* Version number:
@@ -110,14 +123,52 @@ type OfpHello struct {
   OfpHeader
 }
 
+func (m *OfpHello)Write(w io.Writer) os.Error {
+  m.Length = OfpHeaderSize
+  m.Type = OFPT_HELLO
+  m.Version = OFP_VERSION
+  return binary.Write(w, binary.BigEndian, m)
+}
+
+func (m *OfpHello)Read(h *OfpHeader, body []byte) os.Error {
+  m.OfpHeader = *h
+  return nil
+}
+
 type OfpEchoRequest struct {
   OfpHeader
   Body []byte
 }
 
+func (m *OfpEchoRequest) Write(w io.Writer) os.Error {
+  m.Length = uint16(OfpHeaderSize + len(m.Body))
+  m.Type = OFPT_ECHO_REQUEST
+  m.Version = OFP_VERSION
+  return binary.Write(w, binary.BigEndian, m)
+}
+
+func (m *OfpEchoRequest) Read(h *OfpHeader, body []byte) os.Error {
+  m.Body = body
+  m.OfpHeader = *h
+  return nil
+}
+
 type OfpEchoReply struct {
   OfpHeader
   Body []byte
+}
+
+func (m *OfpEchoReply) Write(w io.Writer) os.Error {
+  m.Length = uint16(OfpHeaderSize + len(m.Body))
+  m.Type = OFPT_ECHO_REPLY
+  m.Version = OFP_VERSION
+  return binary.Write(w, binary.BigEndian, m)
+}
+
+func (m *OfpEchoReply) Read(h *OfpHeader, body []byte) os.Error {
+  m.Body = body
+  m.OfpHeader = *h
+  return nil
 }
 
 const OFP_DEFAULT_MISS_SEND_LEN uint16 = 128
@@ -219,22 +270,29 @@ const (
 type OfpPhyPort struct {
   PortNo uint16
   HwAddr [OFP_ETH_ALEN]uint8
-  name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
+  Name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
 
-  config OfpPortConfig /* Bitmap of OFPPC_* flags. */
-  state OfpPortState   /* Bitmap of OFPPS_* flags. */
+  Config OfpPortConfig /* Bitmap of OFPPC_* flags. */
+  State OfpPortState   /* Bitmap of OFPPS_* flags. */
 
   /* Bitmaps of OFPPF_* that describe features.  All bits zeroed if
    * unsupported or unavailable. */
-  curr OfpPortFeatures /* Current features. */
-  advertised OfpPortFeatures /* Features being advertised by the port. */
-  supported OfpPortFeatures /* Features supported by the port. */
-  peer OfpPortFeatures /* Features advertised by peer. */
+  Curr OfpPortFeatures /* Current features. */
+  Advertised OfpPortFeatures /* Features being advertised by the port. */
+  Supported OfpPortFeatures /* Features supported by the port. */
+  Peer OfpPortFeatures /* Features advertised by peer. */
 }
 const PhyPortSize = 48
 
 type SwitchFeaturesRequest struct {
   OfpHeader
+}
+
+func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
+  m.Length = OfpHeaderSize
+  m.Type = OFPT_FEATURES_REQUEST
+  m.Version = OFP_VERSION
+  return binary.Write(w, binary.BigEndian, m)
 }
 
 /* Switch features. */
@@ -245,6 +303,27 @@ type SwitchFeatures struct {
   Ports []OfpPhyPort  /* Port definitions.  The number of ports
      is inferred from the length field in
      the header. */
+}
+
+func (m *SwitchFeatures) Read(h *OfpHeader, body []byte) os.Error {
+  b := bytes.NewBuffer(body)
+  err := binary.Read(b, binary.BigEndian, &m.SwitchFeaturesPart)
+  if err != nil {
+    return err
+  }
+  portsSize := h.Length - OfpHeaderSize - SwitchFeaturesPartSize
+  if portsSize % PhyPortSize != 0 {
+    return os.NewError(fmt.Sprintf("OFPT_FEATURES_REPLY misaligned; ports take %d bytes", 
+                       portsSize))
+  }
+  numPorts := portsSize / PhyPortSize
+  m.Ports = make([]OfpPhyPort, numPorts, numPorts)
+  err = binary.Read(b, binary.BigEndian, m.Ports)
+  if err != nil {
+    return err
+  }
+  // TODO: ports
+  return nil
 }
 
 type SwitchFeaturesPart struct {
@@ -313,6 +392,20 @@ type PacketIn struct {
   EthFrame interface{}
 }
 
+func (m *PacketIn) Read(h *OfpHeader, body []byte) os.Error {
+  b := bytes.NewBuffer(body)
+  err := binary.Read(b, binary.BigEndian, &m.PacketInPart)
+  if err != nil {
+    return err
+  }
+  frm, err := packets.Parse(b)
+  m.EthFrame = frm
+  if err != nil {
+    return err
+  }
+  return err
+}
+
 type PacketInPart struct {
   BufferId uint32  /* ID assigned by datapath. */
   TotalLen uint16  /* Full length of frame. */
@@ -350,17 +443,21 @@ type OfpActionHeader struct {
  * number of bytes to send.  A 'MaxLen' of zero means no bytes of the
  * packet should be sent.*/
 type ActionOutput struct {
-  OfpActionHeader
   Port  uint16    /* Output port. */
   MaxLen uint16   /* Max length to send to controller. */
 }
-func (self *ActionOutput)GetSize() uint16 {
-  return 8
+
+func (m *ActionOutput) Write(w io.Writer) os.Error {
+  h := &OfpActionHeader{OFPAT_OUTPUT, m.ActionLen()}
+  err := binary.Write(w, binary.BigEndian, h)
+  if err != nil {
+    return err
+  }
+  return binary.Write(w, binary.BigEndian, m)
 }
 
-// Sets Max length to 0
-func MkActionOutput(port uint16) *ActionOutput {
-  return &ActionOutput{OfpActionHeader{OFPAT_OUTPUT, 8},port, 0}
+func (m *ActionOutput) ActionLen() uint16 {
+  return 8
 }
 
 /* Action structure for OFPAT_SET_VLAN_VID. */
@@ -528,16 +625,35 @@ const (
 
 /* Flow setup and teardown (controller -> datapath). */
 type FlowMod struct {
-  OfpHeader
+  Xid uint32
   FlowModPart
   // The action length is inferred from the length field in the header
-  Actions []Sized 
+  Actions []Action
+}
+
+func (m *FlowMod) Write(w io.Writer) os.Error {
+  h := &OfpHeader{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
+  err := binary.Write(w, binary.BigEndian, h)
+  if err != nil {
+    return err
+  }
+  err = binary.Write(w, binary.BigEndian, m.FlowModPart)
+  if err != nil {
+    return err
+  }
+  for _, action := range m.Actions {
+    err := action.Write(w)
+    if err != nil {
+      return err
+    }
+  }
+  return nil
 }
 
 func (self *FlowMod)GetSize() uint16 {
   var size uint16 = OfpHeaderSize + 64
   for _, a := range self.Actions {
-  size += a.GetSize()
+  size += a.ActionLen()
   }
   return size
 }
@@ -557,6 +673,7 @@ type FlowModPart struct {
               output port.  A value of OFPP_NONE
               indicates no restriction. */
   Flags uint16       /* One of OFPFF_*. */
+
 }
 const FlowModPartSize = 64
 

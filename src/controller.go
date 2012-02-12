@@ -9,7 +9,6 @@ import (
   "os"
   "io"
   "bytes"
-  "packets"
 )
 
 type PacketInHandler func(msg *of.PacketIn)
@@ -54,8 +53,8 @@ func (self *Controller)Accept(port int, h NewSwitchHandler) os.Error {
   panic("unreachable code")
 }
 
-func (self *Switch)Send(msg interface{}) os.Error {
-  return WriteMsg(self.tcpConn, msg)
+func (self *Switch)Send(msg of.Write) os.Error {
+  return msg.Write(self.tcpConn)
 }
 
 func (self *Switch)Recv() interface{} {
@@ -112,53 +111,6 @@ func (self *Switch)Close() {
   self.tcpConn.Close()
 }
 
-// Fills in the OfpHeader.Version, OfpHeader.Type and OfpHeader.Length fields
-func WriteMsg(b io.Writer, msg interface{}) os.Error {
-  switch m := msg.(type) {
-  case *of.OfpHello:
-    m.Length = of.OfpHeaderSize
-    m.Type = of.OFPT_HELLO
-    m.Version = of.OFP_VERSION
-    return binary.Write(b, binary.BigEndian, m)
-  case *of.SwitchFeaturesRequest:
-    m.Length = of.OfpHeaderSize
-    m.Type = of.OFPT_FEATURES_REQUEST
-    m.Version = of.OFP_VERSION
-    return binary.Write(b, binary.BigEndian, m)
-  case *of.OfpEchoRequest:
-    m.Length = uint16(of.OfpHeaderSize + len(m.Body))
-    m.Type = of.OFPT_ECHO_REQUEST
-    m.Version = of.OFP_VERSION
-    return binary.Write(b, binary.BigEndian, m)
-  case *of.OfpEchoReply:
-    m.Length = uint16(of.OfpHeaderSize + len(m.Body))
-    m.Type = of.OFPT_ECHO_REPLY
-    m.Version = of.OFP_VERSION
-    return binary.Write(b, binary.BigEndian, m)
-  case *of.FlowMod:
-    m.Length = m.GetSize()
-    m.Type = of.OFPT_FLOW_MOD
-    m.Version = of.OFP_VERSION
-    err := binary.Write(b, binary.BigEndian, m.OfpHeader)
-    if err != nil {
-      log.Panicf("Error writing action header; err = %s", err)
-    }
-    err = binary.Write(b, binary.BigEndian, m.FlowModPart)
-    if err != nil {
-      log.Panicf("Error writing flow mod part; err = %s", err)
-    }
-    for _, action := range m.Actions {
-      err := binary.Write(b, binary.BigEndian, action)
-      if err != nil {
-        log.Panicf("Error writing action; err = %s", err)
-      }
-    }
-    return nil
-  }
-  log.Panicf("Unknown message type, msg = %s", msg)
-  return os.NewError("unknown msg type")
-}
-
 func ReadMsg(netBuf *bufio.Reader) interface{} {
   var header of.OfpHeader
   rawHeader := make([]byte, of.OfpHeaderSize)
@@ -176,65 +128,24 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
   if err != nil {
     log.Panicf("error reading body; %s", err)
   }
-  b := bytes.NewBuffer(rawBody)
-  log.Printf("GOT A PACKET of length %s", len(rawBody))
   
+  var msg of.Read
   switch (header.Type) {
   case of.OFPT_HELLO:
-    body := make([]byte, header.Length - of.OfpHeaderSize)
-    err = binary.Read(b, binary.BigEndian, body)
-    if err != nil {
-      log.Panicf("error reading body of hello; %s", err)
-    }
-    return &of.OfpHello{header}
+    msg = new(of.OfpHello)
   case of.OFPT_ECHO_REQUEST:
-    body := make([]byte, header.Length - of.OfpHeaderSize)
-    err = binary.Read(b, binary.BigEndian, body)
-    if err != nil {
-      log.Panicf("error reading OFPT_ECHO_REQUEST body; %s", err)
-    }
-    return &of.OfpEchoRequest{header,body}
+    msg = new(of.OfpEchoRequest)
   case of.OFPT_ECHO_REPLY:
-    body := make([]byte, header.Length - of.OfpHeaderSize)
-    err = binary.Read(b, binary.BigEndian, body)
-    if err != nil {
-      log.Panicf("error reading OFPT_ECHO_REPLY_BODY; %s", err)
-    }
-    return &of.OfpEchoReply{header,body}
+    msg = new(of.OfpEchoReply)
   case of.OFPT_FEATURES_REPLY:
-    var part of.SwitchFeaturesPart
-    err = binary.Read(b, binary.BigEndian, &part)
-    if err != nil {
-      log.Panicf("Error reading OFPT_FEATURES_REPLY static body; %s", err)
-    }
-    portsSize := header.Length - of.OfpHeaderSize -
-      of.SwitchFeaturesPartSize
-    if portsSize % of.PhyPortSize != 0 {
-      log.Panicf("OFPT_FEATURES_REPLY misaligned; ports take %d bytes", 
-                 portsSize)
-    }
-    numPorts := portsSize / of.PhyPortSize
-    ports := make([]of.OfpPhyPort, numPorts, numPorts)
-    err = binary.Read(b, binary.BigEndian, &part)
-    if err != nil {
-      log.Panicf("Error reading OFPT_FEATURES_REPLY ports section; %s", err)
-    }
-    return &of.SwitchFeatures{header,part,ports}
+    msg = new(of.SwitchFeatures)
   case of.OFPT_PACKET_IN:
-    var part of.PacketInPart
-    err = binary.Read(b, binary.BigEndian, &part)
-    if err != nil {
-      log.Panicf("Error reading OFPT_PACKET_IN static body; %s", err)
-    }
-    frame, err := packets.Parse(b)
-    if err != nil {
-      log.Panicf("Error reading OFPT_PACKET_IN frame; %s", err)
-    }
-    return &of.PacketIn{header,part,frame}
+    msg = new(of.PacketIn)
+  default:
+    log.Printf("Unknown message, returning header %s", header)
+    return header
   }
+  err = msg.Read(&header, rawBody)
+  return msg
 
-  body := make([]byte, header.Length - of.OfpHeaderSize)
-  err = binary.Read(b, binary.BigEndian, body)
-  log.Printf("Unknown message, returning header %s", header)
-  return header
 }

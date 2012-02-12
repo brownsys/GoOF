@@ -30,15 +30,18 @@ func newSwitch(sw *controller.Switch) {
       routes[f.SrcAddr] = msg.InPort
       outPort, found := routes[f.DstAddr]
       if !found {
-        sw.Send(&of.FlowMod{
-          of.OfpHeader{Xid: msg.Xid},
+        err := sw.Send(&of.FlowMod{
+          msg.Xid,
           of.FlowModPart{
             Match: of.Match{Wildcards: wildcards,
                             EthFrameType: uint16(packets.EthTypeIP),
                             NwSrc: f.SrcAddr,
                             NwDst: f.DstAddr},
             Flags: of.FCAdd },
-          []of.Sized{of.MkActionOutput(of.PortFlood)}})
+          []of.Action{&of.ActionOutput{of.PortFlood, 0}}})
+        if err != nil {
+          log.Printf("Erroring sending: %v", err)
+        }
       } else {
         log.Printf("known, would send to %x", outPort)
       }
