@@ -1,7 +1,16 @@
 package of
 
+import (
+  "io"
+)
+
 type Sized interface {
   GetSize() uint16
+}
+
+type Read interface {
+  /* Returns self type */
+  Read(header OfpHeader, body io.Reader) interface{}
 }
 
 /* Version number:
@@ -582,11 +591,168 @@ type FlowRemoved struct {
  * be added). */
 type ErrorType uint16
 const (
-  OFPET_HELLO_FAILED ErrorType = iota     /* Hello protocol failed. */
-  OFPET_BAD_REQUEST      /* Request was not understood. */
-  OFPET_BAD_ACTION       /* Error in action description. */
-  OFPET_FLOW_MOD_FAILED    /* Problem modifying flow entry. */
-  OFPET_PORT_MOD_FAILED    /* Port mod request failed. */
-  OFPET_QUEUE_OP_FAILED     /* Queue operation failed. */
+  HelloFailed ErrorType = iota     /* Hello protocol failed. */
+  BadRequest      /* Request was not understood. */
+  BadAction       /* Error in action description. */
+  FlowModFailed    /* Problem modifying flow entry. */
+  PortModFailed    /* Port mod request failed. */
+  QueueOpFailed     /* Queue operation failed. */
 )
+
+/* ofp_error_msg 'code' values for OFPET_HELLO_FAILED.  'data' contains an
+ * ASCII text string that may give failure details. */
+type HelloFailedCode uint16
+const (
+  HelloIncompatible HelloFailedCode = iota /* No compatible version. */
+  HelloPerm /* Permissions error. */
+)
+
+/* ofp_error_msg 'code' values for OFPET_BAD_REQUEST.  'data' contains at least
+ * the first 64 bytes of the failed request. */
+type BadRequestCode uint16
+const (
+  RequestBadVersion BadRequestCode = iota /* ofpHeader.version not supported. */
+  RequestBadType            /* ofpHeader.type not supported. */
+  RequestBadStat            /* ofpStatsRequest.type not supported. */
+  RequestBadVendor          /* Vendor not supported (in ofpVendorHeader
+                             * or ofpStatsRequest or ofpStatsReply). */
+  RequestBadSubtype         /* Vendor subtype not supported. */
+  RequestEperm              /* Permissions error. */
+  RequestBadLen             /* Wrong request length for type. */
+  RequestBufferEmpty        /* Specified buffer has already been used. */
+  RequestBufferUnknown      /* Specified buffer does not exist. */
+)
+
+/* ofpErrorMsg 'code' values for OFPET_BAD_ACTION.  'data' contains at least
+ * the first 64 bytes of the failed request. */
+type BadActionCode uint16
+const (    
+  ActionBadType BadActionCode = iota    /* Unknown action type. */
+  ActionBadLen            /* Length problem in actions. */
+  ActionBadVendor         /* Unknown vendor id specified. */
+  ActionBadVendorType     /* Unknown action type for vendor id. */
+  ActionBadOutPort        /* Problem validating output action. */
+  ActionBadArgument       /* Bad action argument. */
+  ActionEperm             /* Permissions error. */
+  ActionTooMany           /* Can't handle this many actions. */
+  ActionBadQueue          /* Problem validating output queue. */
+)
+
+/* ofpErrorMsg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains
+ * at least the first 64 bytes of the failed request. */
+type FlowModFailedCode uint16
+const (
+  /* Flow not added because of full tables. */
+  FlowModAllTablesFull FlowModFailedCode = iota
+  FlowModOverlap            /* Attempted to add overlapping flow with
+                            * CHECK_OVERLAP flag set. */
+  FlowModEperm              /* Permissions error. */
+  FlowModBadEmergTimeout  /* Flow not added because of non-zero idle/hard
+                             * timeout. */
+  FlowModBadCommand        /* Unknown command. */
+  FlowModUnsupported         /* Unsupported action list - cannot process in
+                                 * the order specified. */
+)
+
+/* ofpErrorMsg 'code' values for OFPET_PORT_MOD_FAILED.  'data' contains
+ * at least the first 64 bytes of the failed request. */
+type PortModFailedCode uint16
+const (
+  /* Specified port does not exist. */
+  PortModBadPort PortModFailedCode = iota           
+  PortModBadHwAddr         /* Specified hardware address is wrong. */
+)
+
+/* ofpError msg 'code' values for OFPET_QUEUE_OP_FAILED. 'data' contains
+ * at least the first 64 bytes of the failed request */
+type QueueOpFailedCode uint16
+const (
+  /* Invalid port (or port does not exist). */
+  QueueOpFailedBadPort QueueOpFailedCode = iota 
+  QueueOpFailedBadQueue          /* Queue does not exist. */
+  QueueOpFailedEperm               /* Permissions error. */
+)
+
+/* OFPT_ERROR: Error message (datapath -> controller). */
+type ErrorMsg struct {
+  OfpHeader 
+  ErrorMsgPart
+  /* Variable-length data.  Interpreted based on the type and code. */
+  Data []byte
+}
+
+type ErrorMsgPart struct {
+  Type ErrorType
+  Code uint16
+}
+
+type StatsType uint16
+const (
+  /* Description of this OpenFlow switch.
+   * The request body is empty.
+   * The reply body is struct ofpDescStats. */
+  StatsDesc StatsType = iota
+
+  /* Individual flow statistics.
+   * The request body is struct ofpFlowStatsRequest.
+   * The reply body is an array of struct ofpFlowStats. */
+  StatsFlow
+
+  /* Aggregate flow statistics.
+   * The request body is struct ofpAggregateStatsRequest.
+   * The reply body is struct ofpAggregateStatsReply. */
+  StatsAggregate
+
+  /* Flow table statistics.
+   * The request body is empty.
+   * The reply body is an array of struct ofpTableStats. */
+  StatsTable
+
+  /* Physical port statistics.
+   * The request body is struct ofpPortStatsRequest.
+   * The reply body is an array of struct ofpPortStats. */
+  StatsPort
+
+  /* Queue statistics for a port
+   * The request body defines the port
+   * The reply body is an array of struct ofpQueueStats */
+  StatsQueue
+
+  /* Vendor extension.
+   * The request and reply bodies begin with a 32-bit vendor ID which takes
+   * the same form as in "struct ofpVendorHeader".  The request and reply
+   * bodies are otherwise vendor-defined. */
+  StatsVendor StatsType = 0xffff
+)
+
+type StatsRequest struct {
+  OfpHeader
+  Type StatsType              /* One of the OFPST_* constants. */
+  Flags uint16             /* OFPSF_REQ_* flags (none yet defined). */
+  Body []byte            /* Body of the request. */
+}
+
+type StatsReplyFlags uint16
+const (
+  StatsReplyMore StatsReplyFlags = 1 << 0 /* More replies to follow. */
+)
+
+type StatsReply struct {
+  OfpHeader
+  Type uint16              /* One of the OFPST_* constants. */
+  Flags StatsReplyFlags    /* OFPSF_REPLY_* flags. */
+  Body []byte           /* Body of the reply. */
+}
+
+const DescStrLen = 256
+const SerialNumLen = 32
+/* Body of reply to OFPST_DESC request.  Each entry is a NULL-terminated
+ * ASCII string. */
+type DescStats struct {
+  MfrDesc [DescStrLen]byte       /* Manufacturer description. */
+  HwDesc [DescStrLen]byte        /* Hardware description. */
+  SwDesc [DescStrLen]byte        /* Software description. */
+  SerialNum [SerialNumLen]byte   /* Serial number. */
+  DpDesc [DescStrLen]byte        /* Human readable description of datapath. */
+}
 
