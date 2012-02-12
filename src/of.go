@@ -1,5 +1,9 @@
 package of
 
+type Sized interface {
+  GetSize() uint16
+}
+
 /* Version number:
  * Non-experimental versions released: 0x01
  * Experimental versions released: 0x81 -- 0x99
@@ -15,7 +19,7 @@ const OFP_MAX_PORT_NAME_LEN = 16
 const OFP_TCP_PORT = 6633
 const  OFP_SSL_PORT = 6633
 
-const OFP_ETH_ALEN = 6    /* Bytes in an Ethernet address. */
+const OFP_ETH_ALEN = 6  /* Bytes in an Ethernet address. */
 
 /* Port numbering.  Physical ports are numbered starting from 1. */
 const (
@@ -24,15 +28,15 @@ const (
 
   /* Fake output "ports". */
   OFPP_IN_PORT  = 0xfff8  /* Send the packet out the input port.  This
-        virtual port must be explicitly used
-        in order to send back out of the input
-        port. */
+    virtual port must be explicitly used
+    in order to send back out of the input
+    port. */
   OFPP_TABLE  = 0xfff9  /* Perform actions in flow table.
-        NB: This can only be the destination
-        port for packet-out messages. */
+    NB: This can only be the destination
+    port for packet-out messages. */
   OFPP_NORMAL   = 0xfffa  /* Process with normal L2/L3 switching. */
   PortFlood = 0xfffb  /* All physical ports except input port and
-                         those disabled by STP. */
+             those disabled by STP. */
   OFPP_ALL  = 0xfffc  /* All physical ports except input port. */
   OFPP_CONTROLLER = 0xfffd  /* Send to controller. */
   OFPP_LOCAL  = 0xfffe  /* Local openflow "port". */
@@ -44,27 +48,27 @@ type OfpType uint8
 const (
   /* Immutable messages. */
   OFPT_HELLO OfpType = iota  /* Symmetric message */
-  OFPT_ERROR     /* Symmetric message */
+  OFPT_ERROR   /* Symmetric message */
   OFPT_ECHO_REQUEST  /* Symmetric message */
-  OFPT_ECHO_REPLY    /* Symmetric message */
-  OFPT_VENDOR    /* Symmetric message */
+  OFPT_ECHO_REPLY  /* Symmetric message */
+  OFPT_VENDOR  /* Symmetric message */
 
   /* Switch configuration messages. */
   OFPT_FEATURES_REQUEST  /* Controller/switch message */
   OFPT_FEATURES_REPLY  /* Controller/switch message */
   OFPT_GET_CONFIG_REQUEST  /* Controller/switch message */
   OFPT_GET_CONFIG_REPLY  /* Controller/switch message */
-  OFPT_SET_CONFIG    /* Controller/switch message */
+  OFPT_SET_CONFIG  /* Controller/switch message */
 
   /* Asynchronous messages. */
-  OFPT_PACKET_IN     /* Async message */
+  OFPT_PACKET_IN   /* Async message */
   OFPT_FLOW_REMOVED  /* Async message */
   OFPT_PORT_STATUS   /* Async message */
 
   /* Controller command messages. */
-  OFPT_PACKET_OUT    /* Controller/switch message */
-  OFPT_FLOW_MOD    /* Controller/switch message */
-  OFPT_PORT_MOD    /* Controller/switch message */
+  OFPT_PACKET_OUT  /* Controller/switch message */
+  OFPT_FLOW_MOD  /* Controller/switch message */
+  OFPT_PORT_MOD  /* Controller/switch message */
 
   /* Statistics messages. */
   OFPT_STATS_REQUEST   /* Controller/switch message */
@@ -85,8 +89,8 @@ type OfpHeader struct {
   Type OfpType   /* One of the OFPT_ constants. */
   Length uint16 /* Length including this OfpHeader. */
   Xid uint32  /* Transaction id associated with this packet.
-       Replies use the same id as was in the request
-       to facilitate pairing. */
+     Replies use the same id as was in the request
+     to facilitate pairing. */
 }
 const OfpHeaderSize = 8
 
@@ -123,9 +127,9 @@ const (
 /* Switch configuration. */
 type OfpSwitchConfig struct {
   OfpHeader
-  flags OfpConfigFlags     /* OFPC_* flags. */
+  flags OfpConfigFlags   /* OFPC_* flags. */
   MissSendLen uint16 /* Max bytes of new flow that datapath should
-        send to the controller. */
+    send to the controller. */
 }
 
 /* Capabilities supported by the datapath. */
@@ -230,14 +234,14 @@ type SwitchFeatures struct {
   SwitchFeaturesPart
   /* Port info.*/
   Ports []OfpPhyPort  /* Port definitions.  The number of ports
-         is inferred from the length field in
-         the header. */
+     is inferred from the length field in
+     the header. */
 }
 
 type SwitchFeaturesPart struct {
   DatapathId uint64   /* Datapath unique ID.  The lower 48-bits are for
-        a MAC address while the upper 16-bits are
-        implementer-defined. */
+    a MAC address while the upper 16-bits are
+    implementer-defined. */
   NBuffers uint32   /* Max packets buffered at once. */
   NTables uint8   /* Number of tables supported by datapath. */
   Pad [3]uint8   /* Align to 64-bits. */
@@ -251,16 +255,16 @@ const SwitchFeaturesPartSize = 24
 /* What changed about the physical port */
 type OfpPortReason uint8
 const (
-  OFPPR_ADD = iota    /* The port was added. */
-  OFPPR_DELETE     /* The port was removed. */
-  OFPPR_MODIFY    /* Some attribute of the port has changed. */
+  OFPPR_ADD = iota  /* The port was added. */
+  OFPPR_DELETE   /* The port was removed. */
+  OFPPR_MODIFY  /* Some attribute of the port has changed. */
 )
 
 /* A physical port has changed in the datapath */
 type OfpPortStatus struct {
   OfpHeader
-  reason OfpPortReason    /* One of OFPPR_*. */
-  pad [7]uint8    /* Align to 64-bits. */
+  reason OfpPortReason  /* One of OFPPR_*. */
+  pad [7]uint8  /* Align to 64-bits. */
   desc OfpPhyPort
 }
 
@@ -269,24 +273,24 @@ type OfpPortMod struct {
   OfpHeader
   PortNo uint16
   HwAddr [OFP_ETH_ALEN]uint8 /* The hardware address is not
-         configurable.  This is used to
-         sanity-check the request so it must
-         be the same as returned in an
-         OfpPhyPort struct. */
+     configurable.  This is used to
+     sanity-check the request so it must
+     be the same as returned in an
+     OfpPhyPort struct. */
 
   config OfpPortConfig  /* Bitmap of OFPPC_* flags. */
   mask OfpPortConfig  /* Bitmap of OFPPC_* flags to be changed. */
 
   advertise OfpPortFeatures /* Bitmap of "OfpPortFeatures"s.  Zero all
-         bits to prevent any action taking place. */
-  pad [4]uint8    /* Pad to 64-bits. */
+     bits to prevent any action taking place. */
+  pad [4]uint8  /* Pad to 64-bits. */
 }
 
 /* Why is this packet being sent to the controller? */
 type OfpPacketInReason uint8
 const (
   OFPR_NO_MATCH = iota  /* No matching flow. */
-  OFPR_ACTION     /* Action explicitly output to controller. */
+  OFPR_ACTION   /* Action explicitly output to controller. */
 )
 
 /* Packet received on port (datapath -> controller). */
@@ -303,7 +307,7 @@ type PacketIn struct {
 type PacketInPart struct {
   BufferId uint32  /* ID assigned by datapath. */
   TotalLen uint16  /* Full length of frame. */
-  InPort uint16    /* Port on which frame was received. */
+  InPort uint16  /* Port on which frame was received. */
   Reason OfpPortReason  /* Reason packet is being sent (one of OFPR_*) */
   Pad uint8
 }
@@ -322,7 +326,7 @@ const (
   OFPAT_SET_NW_TOS   /* IP ToS (DSCP field 6 bits). */
   OFPAT_SET_TP_SRC   /* TCP/UDP source port. */
   OFPAT_SET_TP_DST   /* TCP/UDP destination port. */
-  OFPAT_ENQUEUE    /* Output to queue.  */
+  OFPAT_ENQUEUE  /* Output to queue.  */
   OFPAT_VENDOR OfpActionType = 0xffff
 )
 
@@ -338,27 +342,29 @@ type OfpActionHeader struct {
  * packet should be sent.*/
 type ActionOutput struct {
   OfpActionHeader
-  Port  uint16      /* Output port. */
-  MaxLen uint16     /* Max length to send to controller. */
+  Port  uint16    /* Output port. */
+  MaxLen uint16   /* Max length to send to controller. */
 }
-const actionSize = 8
+func (self *ActionOutput)GetSize() uint16 {
+  return 8
+}
 
 // Sets Max length to 0
 func MkActionOutput(port uint16) *ActionOutput {
-  return &ActionOutput{OfpActionHeader{OFPAT_OUTPUT, actionSize},port, 0}
-} 
+  return &ActionOutput{OfpActionHeader{OFPAT_OUTPUT, 8},port, 0}
+}
 
 /* Action structure for OFPAT_SET_VLAN_VID. */
 type OfpActionVlanVid struct {
   OfpActionHeader
-  VlanVid uint16     /* VLAN id. */
+  VlanVid uint16   /* VLAN id. */
   pad [2]uint8
 }
 
 /* Action structure for OFPAT_SET_VLAN_PCP. */
 type OfpActionVlanPcp struct {
   OfpActionHeader
-  VlanPcp uint8     /* VLAN priority. */
+  VlanPcp uint8   /* VLAN priority. */
   pad [3]uint8
 }
 
@@ -372,14 +378,14 @@ type OfpActionDlAddr struct {
 /* Action structure for OFPAT_SET_NW_SRC/DST. */
 type OfpActionNwAddr struct {
   OfpActionHeader
-  NwAddr uint32    /* IP address. */
+  NwAddr uint32  /* IP address. */
 }
 
 
 /* Action structure for OFPAT_SET_TP_SRC/DST. */
 type OfpActionTpPort struct {
   OfpActionHeader
-  TpPort uint16     /* TCP/UDP port. */
+  TpPort uint16   /* TCP/UDP port. */
   pad [2]uint8
 }
 
@@ -387,33 +393,33 @@ type OfpActionTpPort struct {
 /* Action structure for OFPAT_SET_NW_TOS. */
 type OfpActionNwTos struct {
   OfpActionHeader
-  NwTos uint8     /* IP ToS (DSCP field 6 bits). */
+  NwTos uint8   /* IP ToS (DSCP field 6 bits). */
   pad [3]uint8
 }
 
 /* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
 type OfpActionVendorHeader struct {
   OfpActionHeader
-  vendor uint32    /* Vendor ID which takes the same form
-           as in "struct OfpVendorHeader". */
+  vendor uint32  /* Vendor ID which takes the same form
+       as in "struct OfpVendorHeader". */
 }
 
 
 /* Send packet (controller -> datapath). */
 type OfpPacketOut struct {
   OfpHeader
-  BufferId uint32     /* ID assigned by datapath (-1 if none). */
-  InPort uint16     /* Packet's input port (OFPP_NONE if none). */
+  BufferId uint32   /* ID assigned by datapath (-1 if none). */
+  InPort uint16   /* Packet's input port (OFPP_NONE if none). */
   ActionsLen uint16  /* Size of action array in bytes. */
   actions interface{} /* Actions */
 }
 
 type FlowModCommand uint16
 const (
-  FCAdd = iota     /* New flow. */
-  FCModify         /* Modify all matching flows. */
+  FCAdd = iota   /* New flow. */
+  FCModify     /* Modify all matching flows. */
   FCModifyStrict  /* Modify entry strictly matching wildcards */
-  FCDelete         /* Delete all matching flows. */
+  FCDelete     /* Delete all matching flows. */
   FCDeleteStrict  /* Strictly match wildcards and priority. */
 )
 
@@ -473,21 +479,21 @@ const OFP_VLAN_NONE = 0xffff
 
 /* Fields to match against flows */
 type Match struct {
-  Wildcards uint32    /* Wildcard fields. */
-  InPort uint16      /* Input switch port. */
+  Wildcards uint32  /* Wildcard fields. */
+  InPort uint16    /* Input switch port. */
   DlSrc [OFP_ETH_ALEN]uint8 /* Ethernet source address. */
   DlDst [OFP_ETH_ALEN]uint8 /* Ethernet destination address. */
-  VLanID uint16      /* Input VLAN id. */
-  VLanPCP uint8     /* Input VLAN priority. */
-  Pad0 uint8      /* Align to 64-bits */
-  EthFrameType uint16      /* Ethernet frame type. */
-  NwTOS uint8      /* IP ToS (actually DSCP field 6 bits). */
-  NwProto uint8      /* IP protocol or lower 8 bits of ARP opcode. */
-  Pad1 uint16       /* Align to 64-bits */
-  NwSrc uint32       /* IP source address. */
-  NwDst uint32       /* IP destination address. */
-  TpSrc uint16       /* TCP/UDP source port. */
-  TpDst uint16       /* TCP/UDP destination port. */
+  VLanID uint16    /* Input VLAN id. */
+  VLanPCP uint8   /* Input VLAN priority. */
+  Pad0 uint8    /* Align to 64-bits */
+  EthFrameType uint16    /* Ethernet frame type. */
+  NwTOS uint8    /* IP ToS (actually DSCP field 6 bits). */
+  NwProto uint8    /* IP protocol or lower 8 bits of ARP opcode. */
+  Pad1 uint16     /* Align to 64-bits */
+  NwSrc uint32     /* IP source address. */
+  NwDst uint32     /* IP destination address. */
+  TpSrc uint16     /* TCP/UDP source port. */
+  TpDst uint16     /* TCP/UDP destination port. */
 }
 
 const matchSize = 40
@@ -506,34 +512,81 @@ const DefaultPriority = 0x8000
 
 const (
   SendFlowRem uint16 = 1 << 0  /* Send flow removed message when flow
-                                * expires or is deleted. */
+                * expires or is deleted. */
   CheckOverlap uint16 = 1 << 1 /* Check for overlapping entries first. */
-  Emergency uint16 = 1 << 2    /* Remark this is for emergency. */
+  Emergency uint16 = 1 << 2  /* Remark this is for emergency. */
 )
 
 /* Flow setup and teardown (controller -> datapath). */
 type FlowMod struct {
   OfpHeader
   FlowModPart
-  Actions []interface{}  /* The action length is inferred
-                            from the length field in the
-                            header. */
+  // The action length is inferred from the length field in the header
+  Actions []Sized 
+}
+
+func (self *FlowMod)GetSize() uint16 {
+  var size uint16 = OfpHeaderSize + 64
+  for _, a := range self.Actions {
+  size += a.GetSize()
+  }
+  return size
 }
 
 type FlowModPart struct {
   Match
-  Cookie uint64          /* Opaque controller-issued identifier. */
+  Cookie uint64      /* Opaque controller-issued identifier. */
   /* Flow actions. */
   Command FlowModCommand /* One of OFPFC_*. */
-  IdleTimeout uint16     /* Idle time before discarding (seconds). */
-  HardTimeout uint16     /* Max time before discarding (seconds). */
-  Priority uint16        /* Priority level of flow entry. */
-  BufferId uint32        /* Buffered packet to apply to (or -1).
-                            Not meaningful for OFPFC_DELETE*. */
-  OutPort uint16         /* For OFPFC_DELETE* commands require
-                            matching entries to include this as an
-                            output port.  A value of OFPP_NONE
-                            indicates no restriction. */
-  Flags uint16           /* One of OFPFF_*. */
+  IdleTimeout uint16   /* Idle time before discarding (seconds). */
+  HardTimeout uint16   /* Max time before discarding (seconds). */
+  Priority uint16    /* Priority level of flow entry. */
+  BufferId uint32    /* Buffered packet to apply to (or -1).
+              Not meaningful for OFPFC_DELETE*. */
+  OutPort uint16     /* For OFPFC_DELETE* commands require
+              matching entries to include this as an
+              output port.  A value of OFPP_NONE
+              indicates no restriction. */
+  Flags uint16       /* One of OFPFF_*. */
 }
 const FlowModPartSize = 64
+
+/* Why was this flow removed? */
+type FlowRemovedReason uint8
+const (
+  // Flow idle time exceeded idle_timeout.
+  RemovedReasonIdleTimeout FlowRemovedReason = iota 
+  RemovedReasonHardTimeout /* Time exceeded hard_timeout. */
+  RemovedReasonDelete /* Evicted by a DELETE flow mod. */
+)
+
+/* Flow removed (datapath -> controller). */
+type FlowRemoved struct {
+  OfpHeader
+  Match   /* Description of fields. */
+  Cookie uint64      /* Opaque controller-issued identifier. */
+  Priority uint16    /* Priority level of flow entry. */
+  Reason FlowRemovedReason       /* One of OFPRR_*. */
+  uint8       /* Align to 32-bits. */
+  DurationSec uint32  /* Time flow was alive in seconds. */
+  DurationNsec uint32  /* Time flow was alive in nanoseconds beyond
+                          duration_sec. */
+  IdleTimeout uint16  /* Idle timeout from original flow mod. */
+  uint16      /* Align to 64-bits. */
+  PacketCount uint64
+  ByteCount uint64
+}
+
+/* Values for 'type' in ofp_error_message.  These values are immutable: they
+ * will not change in future versions of the protocol (although new values may
+ * be added). */
+type ErrorType uint16
+const (
+  OFPET_HELLO_FAILED ErrorType = iota     /* Hello protocol failed. */
+  OFPET_BAD_REQUEST      /* Request was not understood. */
+  OFPET_BAD_ACTION       /* Error in action description. */
+  OFPET_FLOW_MOD_FAILED    /* Problem modifying flow entry. */
+  OFPET_PORT_MOD_FAILED    /* Port mod request failed. */
+  OFPET_QUEUE_OP_FAILED     /* Queue operation failed. */
+)
+

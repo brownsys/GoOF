@@ -136,14 +136,7 @@ func WriteMsg(b io.Writer, msg interface{}) os.Error {
     m.Version = of.OFP_VERSION
     return binary.Write(b, binary.BigEndian, m)
   case *of.FlowMod:
-    b2 := bytes.NewBuffer(make([]byte, 0, 64))
-    for _, action := range m.Actions {
-      err := binary.Write(b2, binary.BigEndian, action)
-      if err != nil {
-        log.Panicf("Error writing action; err = %s", err)
-      }
-    }
-    m.Length = of.OfpHeaderSize + of.FlowModPartSize + uint16(b2.Len())
+    m.Length = m.GetSize()
     m.Type = of.OFPT_FLOW_MOD
     m.Version = of.OFP_VERSION
     err := binary.Write(b, binary.BigEndian, m.OfpHeader)
@@ -154,9 +147,11 @@ func WriteMsg(b io.Writer, msg interface{}) os.Error {
     if err != nil {
       log.Panicf("Error writing flow mod part; err = %s", err)
     }
-    _, err = b.Write(b2.Bytes())
-    if err != nil {
-      log.Panicf("Error writing actions; err = %s", err)
+    for _, action := range m.Actions {
+      err := binary.Write(b, binary.BigEndian, action)
+      if err != nil {
+        log.Panicf("Error writing action; err = %s", err)
+      }
     }
     return nil
   }
@@ -182,6 +177,7 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
     log.Panicf("error reading body; %s", err)
   }
   b := bytes.NewBuffer(rawBody)
+  log.Printf("GOT A PACKET of length %s", len(rawBody))
   
   switch (header.Type) {
   case of.OFPT_HELLO:

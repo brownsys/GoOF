@@ -4,7 +4,9 @@ import (
   "controller"
   "log"
   "of"
+  "os"
   "packets"
+  "runtime/pprof"
 )
 
 // Exactly match ethernet frame type, and src and dst addresses
@@ -13,6 +15,10 @@ const wildcards = of.FW_IN_PORT | of.FW_DL_VLAN | of.FW_DL_SRC | of.FW_DL_DST |
   of.FW_NW_PROTO
 
 func newSwitch(sw *controller.Switch) {
+  defer func() {
+    pprof.StopCPUProfile()
+    recover()
+  }()
 
   // Learning switch
   routes := make(map[uint32]uint16, 1000)
@@ -32,7 +38,7 @@ func newSwitch(sw *controller.Switch) {
                             NwSrc: f.SrcAddr,
                             NwDst: f.DstAddr},
             Flags: of.FCAdd },
-          []interface{}{of.MkActionOutput(of.PortFlood)}})
+          []of.Sized{of.MkActionOutput(of.PortFlood)}})
       } else {
         log.Printf("known, would send to %x", outPort)
       }
@@ -48,6 +54,13 @@ func newSwitch(sw *controller.Switch) {
 }
 
 func main() {
+  f, _ := os.Create("profile")
+  err2 := pprof.StartCPUProfile(f)
+  if err2 != nil { panic(err2) }
+  defer func() {
+    log.Printf("Unprofiling")
+  }()
+  
   log.Printf("Starting server ...")
   ctrl := controller.NewController()
   err := ctrl.Accept(6633, newSwitch)
