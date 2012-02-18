@@ -177,19 +177,36 @@ type  OfpConfigFlags uint16
 
 const (
   /* Handling of IP fragments. */
-  OFPC_FRAG_NORMAL OfpConfigFlags = 0 /* No special handling for fragments. */
-  OFPC_FRAG_DROP OfpConfigFlags = 1  /* Drop fragments. */
+  FragNormal OfpConfigFlags = 0 /* No special handling for fragments. */
+  FragDrop OfpConfigFlags = 1  /* Drop fragments. */
   /* Reassemble (only if OFPC_IP_REASM set). */
-  OFPC_FRAG_REASM OfpConfigFlags = 2 
-  OFPC_FRAG_MASK OfpConfigFlags = 3
+  FragReasm OfpConfigFlags = 2 
+  FragMask OfpConfigFlags = 3
 )
 
 /* Switch configuration. */
-type OfpSwitchConfig struct {
-  OfpHeader
-  flags OfpConfigFlags   /* OFPC_* flags. */
+type SwitchConfig struct {
+  Xid xid
+  Flags OfpConfigFlags   /* OFPC_* flags. */
   MissSendLen uint16 /* Max bytes of new flow that datapath should
     send to the controller. */
+}
+
+func (m *SwitchConfig) Write(w io.Writer) os.Error {
+  h := &OfpHeader{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
+  err := binary.Write(w, binary.BigEndian, h)
+  if err != nil {
+    return err
+  }
+  err = binary.Write(w, binary.BigEndian, m.Flags)
+  if err != nil {
+    return err
+  }
+  err = binary.Write(w, binary.BigEndian, m.MissSendLen)
+  if err != nil {
+    return err
+  }
+  return nil
 }
 
 /* Capabilities supported by the datapath. */

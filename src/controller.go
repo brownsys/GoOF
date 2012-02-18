@@ -12,10 +12,15 @@ import (
 )
 
 type PacketInHandler func(msg *of.PacketIn)
+type SwitchFeaturesHandler func(msg *of.SwitchFeatures)
 type NewSwitchHandler func(sw *Switch)
 
 func emptyPacketInHandler(msg *of.PacketIn) {
-  log.Printf("PacketIn message discarded.\n")
+  log.Printf("PacketIn message discarded")
+}
+
+func emptySwitchFeaturesHandler(msg *of.SwitchFeatures) {
+  log.Printf("SwitchFeatures message discarded")
 }
 
 type Controller struct {
@@ -27,6 +32,7 @@ type Switch struct {
   rb *bufio.Reader
   controller *Controller
   HandlePacketIn PacketInHandler
+  HandleSwitchFeatures SwitchFeaturesHandler
 }
 
 func NewController() *Controller {
@@ -46,7 +52,8 @@ func (self *Controller)Accept(port int, h NewSwitchHandler) os.Error {
       continue
     }
     rb := bufio.NewReader(tcpConn)
-    sw := &Switch{tcpConn, rb, self, emptyPacketInHandler}
+    sw := &Switch{tcpConn, rb, self, emptyPacketInHandler, 
+                  emptySwitchFeaturesHandler}
     go h(sw)
   }
 
@@ -101,6 +108,8 @@ func (self *Switch)loop() {
       log.Printf("echo reply")
     case *of.PacketIn:
       self.HandlePacketIn(m)
+    case *of.SwitchFeatures:
+      self.HandleSwitchFeatures(m)
     default:
       log.Printf("unhandled msg recvd")
     }
