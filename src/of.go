@@ -186,10 +186,14 @@ const (
 
 /* Switch configuration. */
 type SwitchConfig struct {
-  Xid xid
+  Xid uint32
   Flags OfpConfigFlags   /* OFPC_* flags. */
   MissSendLen uint16 /* Max bytes of new flow that datapath should
     send to the controller. */
+}
+
+func (m *SwitchConfig) GetSize() uint16 {
+  return 8
 }
 
 func (m *SwitchConfig) Write(w io.Writer) os.Error {
