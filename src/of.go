@@ -14,7 +14,7 @@ type Sized interface {
 }
 
 type Read interface {
-  Read(header *OfpHeader, body []byte) os.Error
+  Read(header *Header, body []byte) os.Error
 }
 
 type Write interface {
@@ -65,11 +65,11 @@ const (
   OFPP_NONE   = 0xffff   /* Not associated with a physical port. */
 )
 
-type OfpType uint8
+type Type uint8
 
 const (
   /* Immutable messages. */
-  OFPT_HELLO OfpType = iota  /* Symmetric message */
+  OFPT_HELLO Type = iota  /* Symmetric message */
   OFPT_ERROR   /* Symmetric message */
   OFPT_ECHO_REQUEST  /* Symmetric message */
   OFPT_ECHO_REPLY  /* Symmetric message */
@@ -106,94 +106,98 @@ const (
 )
 
 /* Header on all OpenFlow packets. */
-type OfpHeader struct {
+type Header struct {
   Version uint8 /* OFP_VERSION. */
-  Type OfpType   /* One of the OFPT_ constants. */
-  Length uint16 /* Length including this OfpHeader. */
+  Type Type   /* One of the OFPT_ constants. */
+  Length uint16 /* Length including this Header. */
   Xid uint32  /* Transaction id associated with this packet.
      Replies use the same id as was in the request
      to facilitate pairing. */
 }
-const OfpHeaderSize = 8
+const HeaderSize = 8
 
 
 /* OFPT_HELLO.  This message has an empty body but implementations must
  * ignore any data included in the body to allow for future extensions. */
-type OfpHello struct {
-  OfpHeader
+type Hello struct {
+  Header
 }
 
-func (m *OfpHello)Write(w io.Writer) os.Error {
-  m.Length = OfpHeaderSize
+func (m *Hello)Write(w io.Writer) os.Error {
+  m.Length = HeaderSize
   m.Type = OFPT_HELLO
   m.Version = OFP_VERSION
   return binary.Write(w, binary.BigEndian, m)
 }
 
-func (m *OfpHello)Read(h *OfpHeader, body []byte) os.Error {
-  m.OfpHeader = *h
+func (m *Hello)Read(h *Header, body []byte) os.Error {
+  m.Header = *h
   return nil
 }
 
-type OfpEchoRequest struct {
-  OfpHeader
+type EchoRequest struct {
+  Header
   Body []byte
 }
 
-func (m *OfpEchoRequest) Write(w io.Writer) os.Error {
-  m.Length = uint16(OfpHeaderSize + len(m.Body))
+func (m *EchoRequest) Write(w io.Writer) os.Error {
+  m.Length = uint16(HeaderSize + len(m.Body))
   m.Type = OFPT_ECHO_REQUEST
   m.Version = OFP_VERSION
   return binary.Write(w, binary.BigEndian, m)
 }
 
-func (m *OfpEchoRequest) Read(h *OfpHeader, body []byte) os.Error {
+func (m *EchoRequest) Read(h *Header, body []byte) os.Error {
   m.Body = body
-  m.OfpHeader = *h
+  m.Header = *h
   return nil
 }
 
-type OfpEchoReply struct {
-  OfpHeader
+type EchoReply struct {
+  Header
   Body []byte
 }
 
-func (m *OfpEchoReply) Write(w io.Writer) os.Error {
-  m.Length = uint16(OfpHeaderSize + len(m.Body))
+func (m *EchoReply) Write(w io.Writer) os.Error {
+  m.Length = uint16(HeaderSize + len(m.Body))
   m.Type = OFPT_ECHO_REPLY
   m.Version = OFP_VERSION
   return binary.Write(w, binary.BigEndian, m)
 }
 
-func (m *OfpEchoReply) Read(h *OfpHeader, body []byte) os.Error {
+func (m *EchoReply) Read(h *Header, body []byte) os.Error {
   m.Body = body
-  m.OfpHeader = *h
+  m.Header = *h
   return nil
 }
 
 const OFP_DEFAULT_MISS_SEND_LEN uint16 = 128
 
-type  OfpConfigFlags uint16
+type  ConfigFlags uint16
 
 const (
   /* Handling of IP fragments. */
-  FragNormal OfpConfigFlags = 0 /* No special handling for fragments. */
-  FragDrop OfpConfigFlags = 1  /* Drop fragments. */
+  FragNormal ConfigFlags = 0 /* No special handling for fragments. */
+  FragDrop ConfigFlags = 1  /* Drop fragments. */
   /* Reassemble (only if OFPC_IP_REASM set). */
-  FragReasm OfpConfigFlags = 2 
-  FragMask OfpConfigFlags = 3
+  FragReasm ConfigFlags = 2 
+  FragMask ConfigFlags = 3
 )
 
 /* Switch configuration. */
 type SwitchConfig struct {
-  Xid xid
-  Flags OfpConfigFlags   /* OFPC_* flags. */
+  Xid uint32
+  Flags ConfigFlags   /* OFPC_* flags. */
   MissSendLen uint16 /* Max bytes of new flow that datapath should
     send to the controller. */
 }
 
+func (m *SwitchConfig) GetSize() uint16 {
+  return 12
+}
+
 func (m *SwitchConfig) Write(w io.Writer) os.Error {
-  h := &OfpHeader{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
+  h := &Header{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
   err := binary.Write(w, binary.BigEndian, h)
   if err != nil {
     return err
@@ -210,103 +214,103 @@ func (m *SwitchConfig) Write(w io.Writer) os.Error {
 }
 
 /* Capabilities supported by the datapath. */
-type OfpCapabilities uint32
+type Capabilities uint32
 const (
-  OFPC_FLOW_STATS OfpCapabilities = 1 << 0  /* Flow statistics. */
-  OFPC_TABLE_STATS OfpCapabilities = 1 << 1  /* Table statistics. */
-  OFPC_PORT_STATS OfpCapabilities = 1 << 2  /* Port statistics. */
-  OFPC_STP OfpCapabilities = 1 << 3 /* 802.1d spanning tree. */
-  OFPC_RESERVED OfpCapabilities = 1 << 4 /* Reserved must be zero. */
-  OFPC_IP_REASM OfpCapabilities = 1 << 5 /* Can reassemble IP fragments. */
-  OFPC_QUEUE_STATS OfpCapabilities = 1 << 6 /* Queue statistics. */
+  OFPC_FLOW_STATS Capabilities = 1 << 0  /* Flow statistics. */
+  OFPC_TABLE_STATS Capabilities = 1 << 1  /* Table statistics. */
+  OFPC_PORT_STATS Capabilities = 1 << 2  /* Port statistics. */
+  OFPC_STP Capabilities = 1 << 3 /* 802.1d spanning tree. */
+  OFPC_RESERVED Capabilities = 1 << 4 /* Reserved must be zero. */
+  OFPC_IP_REASM Capabilities = 1 << 5 /* Can reassemble IP fragments. */
+  OFPC_QUEUE_STATS Capabilities = 1 << 6 /* Queue statistics. */
   /* Match IP addresses in ARP pkts. */
-  OFPC_ARP_MATCH_IP OfpCapabilities = 1 << 7 
+  OFPC_ARP_MATCH_IP Capabilities = 1 << 7 
 )
 
 /* Flags to indicate behavior of the physical port.  These flags are
- * used in OfpPhyPort to describe the current configuration.  They are
- * used in the OfpPortMod message to configure the port's behavior.
+ * used in PhyPort to describe the current configuration.  They are
+ * used in the PortMod message to configure the port's behavior.
  */
-type OfpPortConfig uint32
+type PortConfig uint32
 const (
-  OFPPC_PORT_DOWN OfpPortConfig = 1 << 0  /* Port is administratively down. */
+  OFPPC_PORT_DOWN PortConfig = 1 << 0  /* Port is administratively down. */
   /* Disable 802.1D spanning tree on port. */
-  OFPPC_NO_STP OfpPortConfig = 1 << 1  
+  OFPPC_NO_STP PortConfig = 1 << 1  
   /* Drop all packets except 802.1D spanning tree packets. */
-  OFPPC_NO_RECV OfpPortConfig = 1 << 2 
+  OFPPC_NO_RECV PortConfig = 1 << 2 
   /* Drop received 802.1D STP packets. */
-  OFPPC_NO_RECV_STP OfpPortConfig = 1 << 3  
+  OFPPC_NO_RECV_STP PortConfig = 1 << 3  
   /* Do not include this port when flooding. */
-  OFPPC_NO_FLOOD OfpPortConfig = 1 << 4  
+  OFPPC_NO_FLOOD PortConfig = 1 << 4  
   /* Drop packets forwarded to port. */
-  OFPPC_NO_FWD OfpPortConfig = 1 << 5  
+  OFPPC_NO_FWD PortConfig = 1 << 5  
   /* Do not send packet-in msgs for port. */
-  OFPPC_NO_PACKET_IN OfpPortConfig = 1 << 6   
+  OFPPC_NO_PACKET_IN PortConfig = 1 << 6   
 )
 
 /* Current state of the physical port.  These are not configurable from
  * the controller.
  */
-type OfpPortState uint32
+type PortState uint32
 const (
-  OFPPS_LINK_DOWN OfpPortState = 1 << 0 /* No physical link present. */
+  OFPPS_LINK_DOWN PortState = 1 << 0 /* No physical link present. */
 
   /* The OFPPS_STP_* bits have no effect on switch operation.  The
    * controller must adjust OFPPC_NO_RECV OFPPC_NO_FWD and
    * OFPPC_NO_PACKET_IN appropriately to fully implement an 802.1D spanning
    * tree. */
   /* Not learning or relaying frames. */
-  OFPPS_STP_LISTEN OfpPortState = 0 << 8 
+  OFPPS_STP_LISTEN PortState = 0 << 8 
   /* Learning but not relaying frames. */
-  OFPPS_STP_LEARN OfpPortState = 1 << 8 
-  OFPPS_STP_FORWARD OfpPortState = 2 << 8 /* Learning and relaying frames. */
-  OFPPS_STP_BLOCK OfpPortState = 3 << 8 /* Not part of spanning tree. */
-  OFPPS_STP_MASK OfpPortState = 3 << 8  /* Bit mask for OFPPS_STP_* values. */
+  OFPPS_STP_LEARN PortState = 1 << 8 
+  OFPPS_STP_FORWARD PortState = 2 << 8 /* Learning and relaying frames. */
+  OFPPS_STP_BLOCK PortState = 3 << 8 /* Not part of spanning tree. */
+  OFPPS_STP_MASK PortState = 3 << 8  /* Bit mask for OFPPS_STP_* values. */
 )
 
 /* Features of physical ports available in a datapath. */
-type OfpPortFeatures uint32
+type PortFeatures uint32
 const (
-  OFPPF_10MB_HD OfpPortFeatures = 1 << 0 /* 10 Mb half-duplex rate support. */
-  OFPPF_10MB_FD OfpPortFeatures = 1 << 1 /* 10 Mb full-duplex rate support. */
+  OFPPF_10MB_HD PortFeatures = 1 << 0 /* 10 Mb half-duplex rate support. */
+  OFPPF_10MB_FD PortFeatures = 1 << 1 /* 10 Mb full-duplex rate support. */
   /* 100 Mb half-duplex rate support. */
-  OFPPF_100MB_HD OfpPortFeatures = 1 << 2
+  OFPPF_100MB_HD PortFeatures = 1 << 2
   /* 100 Mb full-duplex rate support. */
-  OFPPF_100MB_FD OfpPortFeatures = 1 << 3 
-  OFPPF_1GB_HD OfpPortFeatures = 1 << 4 /* 1 Gb half-duplex rate support. */
-  OFPPF_1GB_FD OfpPortFeatures = 1 << 5 /* 1 Gb full-duplex rate support. */
-  OFPPF_10GB_FD OfpPortFeatures = 1 << 6 /* 10 Gb full-duplex rate support. */
-  OFPPF_COPPER OfpPortFeatures = 1 << 7 /* Copper medium. */
-  OFPPF_FIBER OfpPortFeatures = 1 << 8 /* Fiber medium. */
-  OFPPF_AUTONEG OfpPortFeatures = 1 << 9 /* Auto-negotiation. */
-  OFPPF_PAUSE OfpPortFeatures = 1 << 10 /* Pause. */
-  OFPPF_PAUSE_ASYM OfpPortFeatures = 1 << 11 /* Asymmetric pause. */
+  OFPPF_100MB_FD PortFeatures = 1 << 3 
+  OFPPF_1GB_HD PortFeatures = 1 << 4 /* 1 Gb half-duplex rate support. */
+  OFPPF_1GB_FD PortFeatures = 1 << 5 /* 1 Gb full-duplex rate support. */
+  OFPPF_10GB_FD PortFeatures = 1 << 6 /* 10 Gb full-duplex rate support. */
+  OFPPF_COPPER PortFeatures = 1 << 7 /* Copper medium. */
+  OFPPF_FIBER PortFeatures = 1 << 8 /* Fiber medium. */
+  OFPPF_AUTONEG PortFeatures = 1 << 9 /* Auto-negotiation. */
+  OFPPF_PAUSE PortFeatures = 1 << 10 /* Pause. */
+  OFPPF_PAUSE_ASYM PortFeatures = 1 << 11 /* Asymmetric pause. */
 )
 
 /* Description of a physical port */
-type OfpPhyPort struct {
+type PhyPort struct {
   PortNo uint16
   HwAddr [OFP_ETH_ALEN]uint8
   Name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
 
-  Config OfpPortConfig /* Bitmap of OFPPC_* flags. */
-  State OfpPortState   /* Bitmap of OFPPS_* flags. */
+  Config PortConfig /* Bitmap of OFPPC_* flags. */
+  State PortState   /* Bitmap of OFPPS_* flags. */
 
   /* Bitmaps of OFPPF_* that describe features.  All bits zeroed if
    * unsupported or unavailable. */
-  Curr OfpPortFeatures /* Current features. */
-  Advertised OfpPortFeatures /* Features being advertised by the port. */
-  Supported OfpPortFeatures /* Features supported by the port. */
-  Peer OfpPortFeatures /* Features advertised by peer. */
+  Curr PortFeatures /* Current features. */
+  Advertised PortFeatures /* Features being advertised by the port. */
+  Supported PortFeatures /* Features supported by the port. */
+  Peer PortFeatures /* Features advertised by peer. */
 }
 const PhyPortSize = 48
 
 type SwitchFeaturesRequest struct {
-  OfpHeader
+  Header
 }
 
 func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
-  m.Length = OfpHeaderSize
+  m.Length = HeaderSize
   m.Type = OFPT_FEATURES_REQUEST
   m.Version = OFP_VERSION
   return binary.Write(w, binary.BigEndian, m)
@@ -314,27 +318,27 @@ func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
 
 /* Switch features. */
 type SwitchFeatures struct {
-  OfpHeader
+  Header
   SwitchFeaturesPart
   /* Port info.*/
-  Ports []OfpPhyPort  /* Port definitions.  The number of ports
+  Ports []PhyPort  /* Port definitions.  The number of ports
      is inferred from the length field in
      the header. */
 }
 
-func (m *SwitchFeatures) Read(h *OfpHeader, body []byte) os.Error {
+func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
   b := bytes.NewBuffer(body)
   err := binary.Read(b, binary.BigEndian, &m.SwitchFeaturesPart)
   if err != nil {
     return err
   }
-  portsSize := h.Length - OfpHeaderSize - SwitchFeaturesPartSize
+  portsSize := h.Length - HeaderSize - SwitchFeaturesPartSize
   if portsSize % PhyPortSize != 0 {
     return os.NewError(fmt.Sprintf("OFPT_FEATURES_REPLY misaligned; ports take %d bytes", 
                        portsSize))
   }
   numPorts := portsSize / PhyPortSize
-  m.Ports = make([]OfpPhyPort, numPorts, numPorts)
+  m.Ports = make([]PhyPort, numPorts, numPorts)
   err = binary.Read(b, binary.BigEndian, m.Ports)
   if err != nil {
     return err
@@ -351,14 +355,14 @@ type SwitchFeaturesPart struct {
   NTables uint8   /* Number of tables supported by datapath. */
   Pad [3]uint8   /* Align to 64-bits. */
   /* Features. */
-  Capabilities OfpCapabilities  /* Bitmap of support "OfpCapabilities". */
-  Actions OfpActionType   /* Bitmap of supported "OfpActionType"s. */
+  Capabilities Capabilities  /* Bitmap of support "Capabilities". */
+  Actions ActionType   /* Bitmap of supported "ActionType"s. */
 }
 const SwitchFeaturesPartSize = 24
 
 
 /* What changed about the physical port */
-type OfpPortReason uint8
+type PortReason uint8
 const (
   OFPPR_ADD = iota  /* The port was added. */
   OFPPR_DELETE   /* The port was removed. */
@@ -366,33 +370,33 @@ const (
 )
 
 /* A physical port has changed in the datapath */
-type OfpPortStatus struct {
-  OfpHeader
-  reason OfpPortReason  /* One of OFPPR_*. */
+type PortStatus struct {
+  Header
+  reason PortReason  /* One of OFPPR_*. */
   pad [7]uint8  /* Align to 64-bits. */
-  desc OfpPhyPort
+  desc PhyPort
 }
 
 /* Modify behavior of the physical port */
-type OfpPortMod struct {
-  OfpHeader
+type PortMod struct {
+  Header
   PortNo uint16
   HwAddr [OFP_ETH_ALEN]uint8 /* The hardware address is not
      configurable.  This is used to
      sanity-check the request so it must
      be the same as returned in an
-     OfpPhyPort struct. */
+     PhyPort struct. */
 
-  config OfpPortConfig  /* Bitmap of OFPPC_* flags. */
-  mask OfpPortConfig  /* Bitmap of OFPPC_* flags to be changed. */
+  config PortConfig  /* Bitmap of OFPPC_* flags. */
+  mask PortConfig  /* Bitmap of OFPPC_* flags to be changed. */
 
-  advertise OfpPortFeatures /* Bitmap of "OfpPortFeatures"s.  Zero all
+  advertise PortFeatures /* Bitmap of "PortFeatures"s.  Zero all
      bits to prevent any action taking place. */
   pad [4]uint8  /* Pad to 64-bits. */
 }
 
 /* Why is this packet being sent to the controller? */
-type OfpPacketInReason uint8
+type PacketInReason uint8
 const (
   OFPR_NO_MATCH = iota  /* No matching flow. */
   OFPR_ACTION   /* Action explicitly output to controller. */
@@ -400,16 +404,16 @@ const (
 
 /* Packet received on port (datapath -> controller). */
 type PacketIn struct {
-  OfpHeader
+  Header
   PacketInPart
 	/* Ethernet frame halfway through 32-bit word so the IP header is 32-bit 
    aligned.  The amount of data is inferred from the length field in the 
-   header.  Because of padding offsetof(struct OfpPacketIn data) == 
-   sizeof(struct OfpPacketIn) - 2. */
+   header.  Because of padding offsetof(struct PacketIn data) == 
+   sizeof(struct PacketIn) - 2. */
   EthFrame interface{}
 }
 
-func (m *PacketIn) Read(h *OfpHeader, body []byte) os.Error {
+func (m *PacketIn) Read(h *Header, body []byte) os.Error {
   b := bytes.NewBuffer(body)
   err := binary.Read(b, binary.BigEndian, &m.PacketInPart)
   if err != nil {
@@ -427,14 +431,14 @@ type PacketInPart struct {
   BufferId uint32  /* ID assigned by datapath. */
   TotalLen uint16  /* Full length of frame. */
   InPort uint16  /* Port on which frame was received. */
-  Reason OfpPortReason  /* Reason packet is being sent (one of OFPR_*) */
+  Reason PortReason  /* Reason packet is being sent (one of OFPR_*) */
   Pad uint8
 }
 const PacketInPartSize = 10
 
-type OfpActionType uint16
+type ActionType uint16
 const (
-  OFPAT_OUTPUT OfpActionType = iota  /* Output to switch port. */
+  OFPAT_OUTPUT ActionType = iota  /* Output to switch port. */
   OFPAT_SET_VLAN_VID   /* Set the 802.1q VLAN id. */
   OFPAT_SET_VLAN_PCP   /* Set the 802.1q priority. */
   OFPAT_STRIP_VLAN   /* Strip the 802.1q header. */
@@ -446,12 +450,12 @@ const (
   OFPAT_SET_TP_SRC   /* TCP/UDP source port. */
   OFPAT_SET_TP_DST   /* TCP/UDP destination port. */
   OFPAT_ENQUEUE  /* Output to queue.  */
-  OFPAT_VENDOR OfpActionType = 0xffff
+  OFPAT_VENDOR ActionType = 0xffff
 )
 
 // Added by Arjun.
-type OfpActionHeader struct {
-  Type OfpActionType
+type ActionHeader struct {
+  Type ActionType
   Len uint16
 }
 
@@ -465,7 +469,7 @@ type ActionOutput struct {
 }
 
 func (m *ActionOutput) Write(w io.Writer) os.Error {
-  h := &OfpActionHeader{OFPAT_OUTPUT, m.ActionLen()}
+  h := &ActionHeader{OFPAT_OUTPUT, m.ActionLen()}
   err := binary.Write(w, binary.BigEndian, h)
   if err != nil {
     return err
@@ -478,59 +482,59 @@ func (m *ActionOutput) ActionLen() uint16 {
 }
 
 /* Action structure for OFPAT_SET_VLAN_VID. */
-type OfpActionVlanVid struct {
-  OfpActionHeader
+type ActionVlanVid struct {
+  ActionHeader
   VlanVid uint16   /* VLAN id. */
   pad [2]uint8
 }
 
 /* Action structure for OFPAT_SET_VLAN_PCP. */
-type OfpActionVlanPcp struct {
-  OfpActionHeader
+type ActionVlanPcp struct {
+  ActionHeader
   VlanPcp uint8   /* VLAN priority. */
   pad [3]uint8
 }
 
 /* Action structure for OFPAT_SET_DL_SRC/DST. */
-type OfpActionDlAddr struct {
-  OfpActionHeader
+type ActionDlAddr struct {
+  ActionHeader
   DlAddr [OFP_ETH_ALEN]uint8  /* Ethernet address. */
   pad [6]uint8
 }
 
 /* Action structure for OFPAT_SET_NW_SRC/DST. */
-type OfpActionNwAddr struct {
-  OfpActionHeader
+type ActionNwAddr struct {
+  ActionHeader
   NwAddr uint32  /* IP address. */
 }
 
 
 /* Action structure for OFPAT_SET_TP_SRC/DST. */
-type OfpActionTpPort struct {
-  OfpActionHeader
+type ActionTpPort struct {
+  ActionHeader
   TpPort uint16   /* TCP/UDP port. */
   pad [2]uint8
 }
 
 
 /* Action structure for OFPAT_SET_NW_TOS. */
-type OfpActionNwTos struct {
-  OfpActionHeader
+type ActionNwTos struct {
+  ActionHeader
   NwTos uint8   /* IP ToS (DSCP field 6 bits). */
   pad [3]uint8
 }
 
 /* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
-type OfpActionVendorHeader struct {
-  OfpActionHeader
+type ActionVendorHeader struct {
+  ActionHeader
   vendor uint32  /* Vendor ID which takes the same form
-       as in "struct OfpVendorHeader". */
+       as in "struct VendorHeader". */
 }
 
 
 /* Send packet (controller -> datapath). */
-type OfpPacketOut struct {
-  OfpHeader
+type PacketOut struct {
+  Header
   BufferId uint32   /* ID assigned by datapath (-1 if none). */
   InPort uint16   /* Packet's input port (OFPP_NONE if none). */
   ActionsLen uint16  /* Size of action array in bytes. */
@@ -649,7 +653,7 @@ type FlowMod struct {
 }
 
 func (m *FlowMod) Write(w io.Writer) os.Error {
-  h := &OfpHeader{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
+  h := &Header{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
   err := binary.Write(w, binary.BigEndian, h)
   if err != nil {
     return err
@@ -668,7 +672,7 @@ func (m *FlowMod) Write(w io.Writer) os.Error {
 }
 
 func (self *FlowMod)GetSize() uint16 {
-  var size uint16 = OfpHeaderSize + 64
+  var size uint16 = HeaderSize + 64
   for _, a := range self.Actions {
   size += a.ActionLen()
   }
@@ -705,7 +709,7 @@ const (
 
 /* Flow removed (datapath -> controller). */
 type FlowRemoved struct {
-  OfpHeader
+  Header
   Match   /* Description of fields. */
   Cookie uint64      /* Opaque controller-issued identifier. */
   Priority uint16    /* Priority level of flow entry. */
@@ -809,7 +813,7 @@ const (
 
 /* OFPT_ERROR: Error message (datapath -> controller). */
 type ErrorMsg struct {
-  OfpHeader 
+  Header 
   ErrorMsgPart
   /* Variable-length data.  Interpreted based on the type and code. */
   Data []byte
@@ -860,7 +864,7 @@ const (
 )
 
 type StatsRequest struct {
-  OfpHeader
+  Header
   Type StatsType              /* One of the OFPST_* constants. */
   Flags uint16             /* OFPSF_REQ_* flags (none yet defined). */
   Body []byte            /* Body of the request. */
@@ -872,7 +876,7 @@ const (
 )
 
 type StatsReply struct {
-  OfpHeader
+  Header
   Type uint16              /* One of the OFPST_* constants. */
   Flags StatsReplyFlags    /* OFPSF_REPLY_* flags. */
   Body []byte           /* Body of the reply. */
@@ -890,3 +894,13 @@ type DescStats struct {
   DpDesc [DescStrLen]byte        /* Human readable description of datapath. */
 }
 
+/* Body for ofpStatsRequest of type OFPST_FLOW. */
+type FlowStatsRequest struct {
+  Match  /* Fields to match. */
+  TableId uint8 /* ID of table to read (from ofpTableStats)
+                   0xff for all tables or 0xfe for emergency. */
+  uint8              /* Align to 32 bits. */
+  OutPort uint16  /* Require matching entries to include this
+                     as an output port.  A value of OFPP_NONE
+                    indicates no restriction. */
+}

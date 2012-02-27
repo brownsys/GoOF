@@ -1,15 +1,4 @@
 
-/* Body for ofpStatsRequest of type OFPST_FLOW. */
-struct ofpFlowStatsRequest {
-    struct ofpMatch match   /* Fields to match. */
-    uint8T tableId         /* ID of table to read (from ofpTableStats)
-                                 0xff for all tables or 0xfe for emergency. */
-    uint8T pad              /* Align to 32 bits. */
-    uint16T outPort        /* Require matching entries to include this
-                                 as an output port.  A value of OFPP_NONE
-                                 indicates no restriction. */
-}
-OFP_ASSERT(sizeof(struct ofpFlowStatsRequest) == 44)
 
 /* Body of reply to OFPST_FLOW request. */
 struct ofpFlowStats {

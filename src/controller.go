@@ -69,7 +69,7 @@ func (self *Switch)Recv() interface{} {
 }
 
 func (self *Switch)Serve() {
-  err := self.Send(&of.OfpHello{})
+  err := self.Send(&of.Hello{})
   if err != nil {
     log.Printf("Send HELLO failed, err=%s", err);
     return
@@ -87,18 +87,18 @@ func (self *Switch)loop() {
   for {
     msg := self.Recv()
     switch m := msg.(type) {
-    case *of.OfpHeader:
+    case *of.Header:
       log.Printf("Recv unknown packet type: %s", m.Type)
-    case *of.OfpHello:
-      err := self.Send(&of.OfpHello{of.OfpHeader{Xid: m.Xid}})
+    case *of.Hello:
+      err := self.Send(&of.Hello{of.Header{Xid: m.Xid}})
       if err != nil {
         log.Printf("send HELLO response failed, err = %s", err)
         self.Close()
         return
       }
       log.Printf("Sent HELLO response.\n")
-    case *of.OfpEchoRequest:
-      err := self.Send(&of.OfpEchoReply{of.OfpHeader{Xid: m.Xid},
+    case *of.EchoRequest:
+      err := self.Send(&of.EchoReply{of.Header{Xid: m.Xid},
                                               m.Body})
       if err != nil {
         log.Printf("send ECHO reply failed, err = %s", err)
@@ -121,8 +121,8 @@ func (self *Switch)Close() {
 }
 
 func ReadMsg(netBuf *bufio.Reader) interface{} {
-  var header of.OfpHeader
-  rawHeader := make([]byte, of.OfpHeaderSize)
+  var header of.Header
+  rawHeader := make([]byte, of.HeaderSize)
   // Panic if fewer bytes are read and don't care about recovering this
   // connection.
   _, err := io.ReadFull(netBuf, rawHeader)
@@ -132,7 +132,7 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
   binary.Read(bytes.NewBuffer(rawHeader), binary.BigEndian, &header) // no err
   
   var rawBody []byte
-  rawBody = make([]byte, header.Length - of.OfpHeaderSize)
+  rawBody = make([]byte, header.Length - of.HeaderSize)
   _, err = io.ReadFull(netBuf, rawBody)
   if err != nil {
     log.Panicf("error reading body; %s", err)
@@ -141,11 +141,11 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
   var msg of.Read
   switch (header.Type) {
   case of.OFPT_HELLO:
-    msg = new(of.OfpHello)
+    msg = new(of.Hello)
   case of.OFPT_ECHO_REQUEST:
-    msg = new(of.OfpEchoRequest)
+    msg = new(of.EchoRequest)
   case of.OFPT_ECHO_REPLY:
-    msg = new(of.OfpEchoReply)
+    msg = new(of.EchoReply)
   case of.OFPT_FEATURES_REPLY:
     msg = new(of.SwitchFeatures)
   case of.OFPT_PACKET_IN:
