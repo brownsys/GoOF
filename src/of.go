@@ -9,28 +9,26 @@ import (
   "packets"
 )
 
-type Sized interface {
-  GetSize() uint16
-}
-
+// Messages from the switch to the controller support this interface.
 type Read interface {
   Read(header *Header, body []byte) os.Error
 }
 
+// Messages from the controller to the switch support this interface.
 type Write interface {
   Write(w io.Writer) os.Error
 }
 
 type Action interface {
-  Write
+  WriteAction(w io.Writer) os.Error
   ActionLen() uint16
 }
 
 /* Version number:
  * Non-experimental versions released: 0x01
  * Experimental versions released: 0x81 -- 0x99
- */
-/* The most significant bit being set in the version field indicates an
+ *
+ * The most significant bit being set in the version field indicates an
  * experimental OpenFlow version.
  */
 const OFP_VERSION =  0x01
@@ -316,14 +314,11 @@ func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
   return binary.Write(w, binary.BigEndian, m)
 }
 
-/* Switch features. */
+
 type SwitchFeatures struct {
   Header
   SwitchFeaturesPart
-  /* Port info.*/
-  Ports []PhyPort  /* Port definitions.  The number of ports
-     is inferred from the length field in
-     the header. */
+  Ports []PhyPort  // Port definitions.
 }
 
 func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
@@ -468,7 +463,7 @@ type ActionOutput struct {
   MaxLen uint16   /* Max length to send to controller. */
 }
 
-func (m *ActionOutput) Write(w io.Writer) os.Error {
+func (m *ActionOutput) WriteAction(w io.Writer) os.Error {
   h := &ActionHeader{OFPAT_OUTPUT, m.ActionLen()}
   err := binary.Write(w, binary.BigEndian, h)
   if err != nil {
@@ -663,7 +658,7 @@ func (m *FlowMod) Write(w io.Writer) os.Error {
     return err
   }
   for _, action := range m.Actions {
-    err := action.Write(w)
+    err := action.WriteAction(w)
     if err != nil {
       return err
     }
@@ -696,7 +691,9 @@ type FlowModPart struct {
   Flags uint16       /* One of OFPFF_*. */
 
 }
-const FlowModPartSize = 64
+
+///////////////////////////////////////////////////////////////////////////////
+// Flow removed reason
 
 /* Why was this flow removed? */
 type FlowRemovedReason uint8
@@ -710,6 +707,10 @@ const (
 /* Flow removed (datapath -> controller). */
 type FlowRemoved struct {
   Header
+  FlowRemovedPart
+}
+
+type FlowRemovedPart struct {
   Match   /* Description of fields. */
   Cookie uint64      /* Opaque controller-issued identifier. */
   Priority uint16    /* Priority level of flow entry. */
@@ -724,6 +725,19 @@ type FlowRemoved struct {
   ByteCount uint64
 }
 
+func (m *FlowRemoved)Read(h *Header, body []byte) os.Error {
+  buf := bytes.NewBuffer(body)
+  err := binary.Read(buf, binary.BigEndian, &m.FlowRemovedPart)
+  if err != nil {
+    return err
+  }
+  m.Header = *h
+  return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Error messages
+
 /* Values for 'type' in ofp_error_message.  These values are immutable: they
  * will not change in future versions of the protocol (although new values may
  * be added). */
@@ -737,91 +751,35 @@ const (
   QueueOpFailed     /* Queue operation failed. */
 )
 
-/* ofp_error_msg 'code' values for OFPET_HELLO_FAILED.  'data' contains an
- * ASCII text string that may give failure details. */
-type HelloFailedCode uint16
-const (
-  HelloIncompatible HelloFailedCode = iota /* No compatible version. */
-  HelloPerm /* Permissions error. */
-)
-
-/* ofp_error_msg 'code' values for OFPET_BAD_REQUEST.  'data' contains at least
- * the first 64 bytes of the failed request. */
-type BadRequestCode uint16
-const (
-  RequestBadVersion BadRequestCode = iota /* ofpHeader.version not supported. */
-  RequestBadType            /* ofpHeader.type not supported. */
-  RequestBadStat            /* ofpStatsRequest.type not supported. */
-  RequestBadVendor          /* Vendor not supported (in ofpVendorHeader
-                             * or ofpStatsRequest or ofpStatsReply). */
-  RequestBadSubtype         /* Vendor subtype not supported. */
-  RequestEperm              /* Permissions error. */
-  RequestBadLen             /* Wrong request length for type. */
-  RequestBufferEmpty        /* Specified buffer has already been used. */
-  RequestBufferUnknown      /* Specified buffer does not exist. */
-)
-
-/* ofpErrorMsg 'code' values for OFPET_BAD_ACTION.  'data' contains at least
- * the first 64 bytes of the failed request. */
-type BadActionCode uint16
-const (    
-  ActionBadType BadActionCode = iota    /* Unknown action type. */
-  ActionBadLen            /* Length problem in actions. */
-  ActionBadVendor         /* Unknown vendor id specified. */
-  ActionBadVendorType     /* Unknown action type for vendor id. */
-  ActionBadOutPort        /* Problem validating output action. */
-  ActionBadArgument       /* Bad action argument. */
-  ActionEperm             /* Permissions error. */
-  ActionTooMany           /* Can't handle this many actions. */
-  ActionBadQueue          /* Problem validating output queue. */
-)
-
-/* ofpErrorMsg 'code' values for OFPET_FLOW_MOD_FAILED.  'data' contains
- * at least the first 64 bytes of the failed request. */
-type FlowModFailedCode uint16
-const (
-  /* Flow not added because of full tables. */
-  FlowModAllTablesFull FlowModFailedCode = iota
-  FlowModOverlap            /* Attempted to add overlapping flow with
-                            * CHECK_OVERLAP flag set. */
-  FlowModEperm              /* Permissions error. */
-  FlowModBadEmergTimeout  /* Flow not added because of non-zero idle/hard
-                             * timeout. */
-  FlowModBadCommand        /* Unknown command. */
-  FlowModUnsupported         /* Unsupported action list - cannot process in
-                                 * the order specified. */
-)
-
-/* ofpErrorMsg 'code' values for OFPET_PORT_MOD_FAILED.  'data' contains
- * at least the first 64 bytes of the failed request. */
-type PortModFailedCode uint16
-const (
-  /* Specified port does not exist. */
-  PortModBadPort PortModFailedCode = iota           
-  PortModBadHwAddr         /* Specified hardware address is wrong. */
-)
-
-/* ofpError msg 'code' values for OFPET_QUEUE_OP_FAILED. 'data' contains
- * at least the first 64 bytes of the failed request */
-type QueueOpFailedCode uint16
-const (
-  /* Invalid port (or port does not exist). */
-  QueueOpFailedBadPort QueueOpFailedCode = iota 
-  QueueOpFailedBadQueue          /* Queue does not exist. */
-  QueueOpFailedEperm               /* Permissions error. */
-)
-
-/* OFPT_ERROR: Error message (datapath -> controller). */
 type ErrorMsg struct {
   Header 
-  ErrorMsgPart
+  Type ErrorType
+  Code uint16
   /* Variable-length data.  Interpreted based on the type and code. */
   Data []byte
 }
 
-type ErrorMsgPart struct {
-  Type ErrorType
-  Code uint16
+func (m *ErrorMsg)Read(h *Header, body []byte) os.Error {
+  buf := bytes.NewBuffer(body)
+  m.Header = *h
+  err := binary.Read(buf, binary.BigEndian, &m.Type)
+  if err != nil {
+    return err
+  }
+  err = binary.Read(buf, binary.BigEndian, &m.Code)
+  if err != nil {
+    return err
+  }
+  m.Data = body[4:] // rest of body
+  return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Statistics
+
+type Stat interface {
+  WriteStat(w io.Writer) os.Error
+  Length() uint16
 }
 
 type StatsType uint16
@@ -870,6 +828,7 @@ type StatsRequest struct {
   Body []byte            /* Body of the request. */
 }
 
+
 type StatsReplyFlags uint16
 const (
   StatsReplyMore StatsReplyFlags = 1 << 0 /* More replies to follow. */
@@ -904,3 +863,5 @@ type FlowStatsRequest struct {
                      as an output port.  A value of OFPP_NONE
                     indicates no restriction. */
 }
+
+
