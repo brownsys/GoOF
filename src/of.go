@@ -335,9 +335,17 @@ const (
 /* A physical port has changed in the datapath */
 type PortStatus struct {
   Header
-  reason PortReason  /* One of OFPPR_*. */
+  Reason PortReason  /* One of OFPPR_*. */
   pad [7]uint8  /* Align to 64-bits. */
-  desc PhyPort
+  Desc PhyPort
+}
+
+func (m *PortStatus)Read(h *Header, body []byte) os.Error {
+  buf := bytes.NewBuffer(body)
+  m.Header = Header
+  binary.Read(buf, binary.BigEndian, &m.Reason)
+  binary.Read(buf, binary.BigEndian, &m.pad)
+  return binary.Read(buf, binary.BigEndian, &m.PhyPort)
 }
 
 // Modify behavior of the physical port.
