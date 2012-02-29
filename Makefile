@@ -1,3 +1,5 @@
+GOPATH=$(shell pwd)
+
 all:
-	gd -o main src
+	go build goof/learning
 
