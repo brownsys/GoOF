@@ -618,41 +618,39 @@ const (
 
 /* Flow wildcards. */
 const (
-	FW_IN_PORT  uint32 = 1 << 0 /* Switch input port. */
-	FW_DL_VLAN  uint32 = 1 << 1 /* VLAN id. */
-	FW_DL_SRC   uint32 = 1 << 2 /* Ethernet source address. */
-	FW_DL_DST   uint32 = 1 << 3 /* Ethernet destination address. */
-	FW_DL_TYPE  uint32 = 1 << 4 /* Ethernet frame type. */
-	FW_NW_PROTO uint32 = 1 << 5 /* IP protocol. */
-	FW_TP_SRC   uint32 = 1 << 6 /* TCP/UDP source port. */
-	FW_TP_DST   uint32 = 1 << 7 /* TCP/UDP destination port. */
+	FwInPort  uint32 = 1 << 0 /* Switch input port. */
+	FwDlVlan  uint32 = 1 << 1 /* VLAN id. */
+	FwDlSrc   uint32 = 1 << 2 /* Ethernet source address. */
+	FwDlDst   uint32 = 1 << 3 /* Ethernet destination address. */
+	FwDlType  uint32 = 1 << 4 /* Ethernet frame type. */
+	FwNwProto uint32 = 1 << 5 /* IP protocol. */
+	FwTpSrc   uint32 = 1 << 6 /* TCP/UDP source port. */
+	FwTpDst   uint32 = 1 << 7 /* TCP/UDP destination port. */
 
 	/* IP source address wildcard bit count.  0 is exact match 1 ignores the
 	 * LSB 2 ignores the 2 least-significant bits ... 32 and higher wildcard
 	 * the entire field.  This is the *opposite* of the usual convention where
 	 * e.g. /24 indicates that 8 bits (not 24 bits) are wildcarded. */
-	FW_NW_SRC_SHIFT uint32 = 8
-	FW_NW_SRC_BITS  uint32 = 6
-	FW_NW_SRC_MASK  uint32 = ((1 << FW_NW_SRC_BITS) - 1) << FW_NW_SRC_SHIFT
-	FW_NW_SRC_ALL   uint32 = 32 << FW_NW_SRC_SHIFT
+	FwNwSrcShift uint32 = 8
+	FwNwSrcBits  uint32 = 6
+	FwNwSrcMask  uint32 = ((1 << FwNwSrcBits) - 1) << FwNwSrcShift
+	FwNwSrcAll   uint32 = 32 << FwNwSrcShift
 
 	/* IP destination address wildcard bit count.  Same format as source. */
-	FW_NW_DST_SHIFT uint32 = 14
-	FW_NW_DST_BITS  uint32 = 6
-	FW_NW_DST_MASK  uint32 = ((1 << FW_NW_DST_BITS) - 1) << FW_NW_DST_SHIFT
-	FW_NW_DST_ALL   uint32 = 32 << FW_NW_DST_SHIFT
+	FwNwDstShift uint32 = 14
+	FwNwDstBits  uint32 = 6
+	FwNwDstMask  uint32 = ((1 << FwNwDstBits) - 1) << FwNwDstShift
+	FwNwDstAll   uint32 = 32 << FwNwDstShift
 
-	FW_DL_VLAN_PCP uint32 = 1 << 20 /* VLAN priority. */
-	FW_NW_TOS      uint32 = 1 << 21 /* IP ToS (DSCP field 6 bits). */
-
-	/* Wildcard all fields. */
-	FW_ALL uint32 = ((1 << 22) - 1)
+	FwDlVlanPcp uint32 = 1 << 20 /* VLAN priority. */
+	FwNwTos      uint32 = 1 << 21 /* IP ToS (DSCP field 6 bits). */
+	FwAll uint32 = ((1 << 22) - 1) // Wildcard all fields
 )
 
 /* The wildcards for ICMP type and code fields use the transport source
  * and destination port fields respectively. */
-const FW_ICMP_TYPE = FW_TP_SRC
-const FW_ICMP_CODE = FW_TP_DST
+const FW_ICMP_TYPE = FwTpSrc
+const FW_ICMP_CODE = FwTpDst
 
 /* Values below this cutoff are 802.3 packets and the two bytes
  * following MAC addresses are used as a frame length.  Otherwise the

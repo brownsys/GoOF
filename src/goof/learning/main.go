@@ -10,9 +10,7 @@ import (
 )
 
 // Exactly match ethernet frame type, and src and dst addresses
-const wildcards = of.FW_IN_PORT | of.FW_DL_VLAN | of.FW_DL_SRC | of.FW_DL_DST |
-  of.FW_TP_SRC | of.FW_TP_DST | of.FW_DL_VLAN_PCP | of.FW_NW_TOS | 
-  of.FW_NW_PROTO
+const wildcards = of.FwAll ^ of.FwNwSrcAll ^ of.FwNwDstAll
 
 func newSwitch(sw *controller.Switch) {
   defer func() {
