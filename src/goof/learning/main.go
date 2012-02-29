@@ -1,11 +1,11 @@
 package main
 
 import (
-  "controller"
+  "goof/controller"
   "log"
-  "of"
+  "goof/of"
   "os"
-  "packets"
+  "goof/packets"
   "runtime/pprof"
 )
 
