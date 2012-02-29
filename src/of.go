@@ -211,52 +211,44 @@ const (
 // used in PhyPort to describe the current configuration.  They are
 // used in the PortMod message to configure the port's behavior.
 const (
-  PortDown uint32 = 1 << 0 // port is administratively down
-  NoStp uint32 = 1 << 1 // disable 802.1d spanning tree on port
-  NoRecv uint32 = 1 << 2 // drop all packets except 802.1d spanning tree packets
-  NoRecvStp uint32 = 1 << 3  // drop received 802.1d stp packets
-  NoFlood uint32 = 1 << 4 // do not include this port when flooding
-  NoFwd uint32 = 1 << 5 // drop packets forwarded to port
-  NoPacketIn uint32 = 1 << 6 // do not send packet-in msgs for port
+  OfppcPortDown uint32 = 1 << 0 // port is administratively down
+  OfppcNoStp uint32 = 1 << 1 // disable 802.1d spanning tree on port
+  OfppcNoRecv uint32 = 1 << 2 // drop all packets except spanning tree packets
+  OfppcNoRecvStp uint32 = 1 << 3  // drop received 802.1d stp packets
+  OfppcNoFlood uint32 = 1 << 4 // do not include this port when flooding
+  OfppcNoFwd uint32 = 1 << 5 // drop packets forwarded to port
+  OfppcNoPacketIn uint32 = 1 << 6 // do not send packet-in msgs for port
 )
 
-/* Current state of the physical port.  These are not configurable from
- * the controller.
- */
-type PortState uint32
+// Current state of the physical port.  These are not configurable from
+// the controller.
 const (
-  OFPPS_LINK_DOWN PortState = 1 << 0 /* No physical link present. */
-
-  /* The OFPPS_STP_* bits have no effect on switch operation.  The
-   * controller must adjust OFPPC_NO_RECV OFPPC_NO_FWD and
-   * OFPPC_NO_PACKET_IN appropriately to fully implement an 802.1D spanning
-   * tree. */
-  /* Not learning or relaying frames. */
-  OFPPS_STP_LISTEN PortState = 0 << 8 
-  /* Learning but not relaying frames. */
-  OFPPS_STP_LEARN PortState = 1 << 8 
-  OFPPS_STP_FORWARD PortState = 2 << 8 /* Learning and relaying frames. */
-  OFPPS_STP_BLOCK PortState = 3 << 8 /* Not part of spanning tree. */
-  OFPPS_STP_MASK PortState = 3 << 8  /* Bit mask for OFPPS_STP_* values. */
+  OfppsLinkDown uint32 = 1 << 0 /* No physical link present. */
+  // The OfppsStp* bits have no effect on switch operation.  The
+  // controller must adjust OfppcNoRecv, OfppcNoFwd,
+  // OfppcNoPacketIn appropriately to fully implement an 802.1D spanning
+  // tree.
+  OfppsStpListen uint32 = 0 << 8  // Not learning or relaying frames
+  OfppsStpLearn uint32 = 1 << 8   // learning but not relaying frames
+  OfppsStpForward uint32 = 2 << 8 // learning and relaying frames
+  OfppsStpBlock uint32 = 3 << 8   // not part of spanning tree
+  OfppsStpMask uint32 = 3 << 8    // bit mask for ofpps_stp_* values
 )
 
-/* Features of physical ports available in a datapath. */
-type PortFeatures uint32
+// Features of physical ports available in a datapath
 const (
-  OFPPF_10MB_HD PortFeatures = 1 << 0 /* 10 Mb half-duplex rate support. */
-  OFPPF_10MB_FD PortFeatures = 1 << 1 /* 10 Mb full-duplex rate support. */
-  /* 100 Mb half-duplex rate support. */
-  OFPPF_100MB_HD PortFeatures = 1 << 2
-  /* 100 Mb full-duplex rate support. */
-  OFPPF_100MB_FD PortFeatures = 1 << 3 
-  OFPPF_1GB_HD PortFeatures = 1 << 4 /* 1 Gb half-duplex rate support. */
-  OFPPF_1GB_FD PortFeatures = 1 << 5 /* 1 Gb full-duplex rate support. */
-  OFPPF_10GB_FD PortFeatures = 1 << 6 /* 10 Gb full-duplex rate support. */
-  OFPPF_COPPER PortFeatures = 1 << 7 /* Copper medium. */
-  OFPPF_FIBER PortFeatures = 1 << 8 /* Fiber medium. */
-  OFPPF_AUTONEG PortFeatures = 1 << 9 /* Auto-negotiation. */
-  OFPPF_PAUSE PortFeatures = 1 << 10 /* Pause. */
-  OFPPF_PAUSE_ASYM PortFeatures = 1 << 11 /* Asymmetric pause. */
+  Ppf10MBHd uint32 = 1 << 0 /* 10 Mb half-duplex rate support. */
+  Ppf10MBFd uint32 = 1 << 1 /* 10 Mb full-duplex rate support. */
+  Ppf100MBHd uint32 = 1 << 2 /* 100 Mb half-duplex rate support. */
+  Ppf100MBFd uint32 = 1 << 3 /* 100 Mb full-duplex rate support. */
+  Ppf1GBHd uint32 = 1 << 4 /* 1 Gb half-duplex rate support. */
+  Ppf1GBFd uint32 = 1 << 5 /* 1 Gb full-duplex rate support. */
+  Ppf10GBFd uint32 = 1 << 6 /* 10 Gb full-duplex rate support. */
+  PpfCopper uint32 = 1 << 7 /* Copper medium. */
+  PpfFiber uint32 = 1 << 8 /* Fiber medium. */
+  PpfAutoneg uint32 = 1 << 9 /* Auto-negotiation. */
+  PpfPause uint32 = 1 << 10 /* Pause. */
+  PpfPauseAsym uint32 = 1 << 11 /* Asymmetric pause. */
 )
 
 /* Description of a physical port */
@@ -265,15 +257,15 @@ type PhyPort struct {
   HwAddr [OFP_ETH_ALEN]uint8
   Name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
 
-  Config uint32 /* Bitmap of OFPPC_* flags. */
-  State PortState   /* Bitmap of OFPPS_* flags. */
+  Config uint32 /* Bitmap of Ofppc* flags. */
+  State uint32 /* Bitmap of Ofpps* flags. */
 
-  /* Bitmaps of OFPPF_* that describe features.  All bits zeroed if
-   * unsupported or unavailable. */
-  Curr PortFeatures /* Current features. */
-  Advertised PortFeatures /* Features being advertised by the port. */
-  Supported PortFeatures /* Features supported by the port. */
-  Peer PortFeatures /* Features advertised by peer. */
+  // Bitmaps of Ppf* that describe features.  All bits zeroed if
+  // unsupported or unavailable.
+  Curr uint32 /* Current features. */
+  Advertised uint32 /* Features being advertised by the port. */
+  Supported uint32 /* Features supported by the port. */
+  Peer uint32 /* Features advertised by peer. */
 }
 const phyPortSize = 48
 
@@ -348,22 +340,30 @@ type PortStatus struct {
   desc PhyPort
 }
 
-/* Modify behavior of the physical port */
+// Modify behavior of the physical port.
 type PortMod struct {
-  Header
+  Xid uint32
   PortNo uint16
-  HwAddr [OFP_ETH_ALEN]uint8 /* The hardware address is not
-     configurable.  This is used to
-     sanity-check the request so it must
-     be the same as returned in an
-     PhyPort struct. */
+  // The hardware address is not configurable.  This is used to sanity-check the
+  // request so it must be the same as returned in an PhyPort struct.
+  HwAddr [OFP_ETH_ALEN]uint8 
+  Config uint32     // Bitmap of Ofppc* flags.
+  Mask uint32      // Bitmap of Ofppc* flags to be changed.
+  Advertise uint32 // Bitmap of Ofppc* flags.  Zero all to prevent any action.
+}
 
-  Config uint32 /* Bitmap of OFPPC_* flags. */
-  Mask uint32  /* Bitmap of OFPPC_* flags to be changed. */
+var pad64 = make([]byte,8,8)
 
-  Advertise PortFeatures /* Bitmap of "PortFeatures"s.  Zero all
-     bits to prevent any action taking place. */
-  uint64  /* Pad to 64-bits. */
+func (m *PortMod) Write(w io.Writer) os.Error {
+  h := Header{OFP_VERSION, OFPT_PORT_MOD, 32, m.Xid}
+  binary.Write(w, binary.BigEndian, h)
+  binary.Write(w, binary.BigEndian, m.PortNo)
+  binary.Write(w, binary.BigEndian, m.HwAddr)
+  binary.Write(w, binary.BigEndian, m.Config)
+  binary.Write(w, binary.BigEndian, m.Mask)
+  binary.Write(w, binary.BigEndian, m.Advertise)
+  _, err := w.Write(pad64)
+  return err
 }
 
 /* Why is this packet being sent to the controller? */
@@ -708,42 +708,8 @@ const (
 /* Flow setup and teardown (controller -> datapath). */
 type FlowMod struct {
   Xid uint32
-  FlowModPart
-  // The action length is inferred from the length field in the header
-  Actions []Action
-}
-
-func (m *FlowMod) Write(w io.Writer) os.Error {
-  h := &Header{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
-  err := binary.Write(w, binary.BigEndian, h)
-  if err != nil {
-    return err
-  }
-  err = binary.Write(w, binary.BigEndian, m.FlowModPart)
-  if err != nil {
-    return err
-  }
-  for _, action := range m.Actions {
-    err := action.WriteAction(w)
-    if err != nil {
-      return err
-    }
-  }
-  return nil
-}
-
-func (self *FlowMod)GetSize() uint16 {
-  var size uint16 = HeaderSize + 64
-  for _, a := range self.Actions {
-  size += a.ActionLen()
-  }
-  return size
-}
-
-type FlowModPart struct {
-  Match
+  Match Match
   Cookie uint64      /* Opaque controller-issued identifier. */
-  /* Flow actions. */
   Command FlowModCommand /* One of OFPFC_*. */
   IdleTimeout uint16   /* Idle time before discarding (seconds). */
   HardTimeout uint16   /* Max time before discarding (seconds). */
@@ -755,7 +721,32 @@ type FlowModPart struct {
               output port.  A value of OFPP_NONE
               indicates no restriction. */
   Flags uint16       /* One of OFPFF_*. */
+  Actions []Action // Flow actions.
+}
 
+func (m *FlowMod) Write(w io.Writer) os.Error {
+  var size uint16 = HeaderSize + 64
+  for _, a := range m.Actions {
+  size += a.ActionLen()
+  }
+  h := &Header{OFP_VERSION, OFPT_FLOW_MOD, size, m.Xid}
+  binary.Write(w, binary.BigEndian, h)
+  binary.Write(w, binary.BigEndian, m.Match)
+  binary.Write(w, binary.BigEndian, m.Cookie)
+  binary.Write(w, binary.BigEndian, m.Command)
+  binary.Write(w, binary.BigEndian, m.IdleTimeout)
+  binary.Write(w, binary.BigEndian, m.HardTimeout)
+  binary.Write(w, binary.BigEndian, m.Priority)
+  binary.Write(w, binary.BigEndian, m.BufferId)
+  binary.Write(w, binary.BigEndian, m.OutPort)
+  binary.Write(w, binary.BigEndian, m.Flags)
+  for _, action := range m.Actions {
+    err := action.WriteAction(w)
+    if err != nil {
+      return err
+    }
+  }
+  return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////

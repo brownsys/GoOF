@@ -31,14 +31,13 @@ func newSwitch(sw *controller.Switch) {
       outPort, found := routes[f.DstAddr]
       if !found {
         err := sw.Send(&of.FlowMod{
-          msg.Xid,
-          of.FlowModPart{
-            Match: of.Match{Wildcards: wildcards,
-                            EthFrameType: uint16(packets.EthTypeIP),
-                            NwSrc: f.SrcAddr,
-                            NwDst: f.DstAddr},
-            Flags: of.FCAdd },
-          []of.Action{&of.ActionOutput{of.PortFlood, 0}}})
+          Xid: msg.Xid,
+          Match: of.Match{Wildcards: wildcards,
+                          EthFrameType: uint16(packets.EthTypeIP),
+                          NwSrc: f.SrcAddr,
+                          NwDst: f.DstAddr},
+          Flags: of.FCAdd,
+          Actions: []of.Action{&of.ActionOutput{of.PortFlood, 0}}})
         if err != nil {
           log.Printf("Erroring sending: %v", err)
         }
