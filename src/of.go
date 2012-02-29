@@ -24,6 +24,8 @@ type Action interface {
   ActionLen() uint16
 }
 
+var pad64 = make([]byte,8,8)
+
 /* Version number:
  * Non-experimental versions released: 0x01
  * Experimental versions released: 0x81 -- 0x99
@@ -39,7 +41,7 @@ const OFP_MAX_PORT_NAME_LEN = 16
 const OFP_TCP_PORT = 6633
 const  OFP_SSL_PORT = 6633
 
-const OFP_ETH_ALEN = 6  /* Bytes in an Ethernet address. */
+const EthAlen = 6  /* Bytes in an Ethernet address. */
 
 /* Port numbering.  Physical ports are numbered starting from 1. */
 const (
@@ -177,7 +179,6 @@ const (
   FragNormal ConfigFlags = 0 // No special handling for IP fragments.
   FragDrop ConfigFlags = 1   // Drop fragments.
   FragReasm ConfigFlags = 2  // Reassemble (only if OFPC_IP_REASM set).
-  FragMask ConfigFlags = 3
 )
 
 type SwitchConfig struct {
@@ -254,7 +255,7 @@ const (
 /* Description of a physical port */
 type PhyPort struct {
   PortNo uint16
-  HwAddr [OFP_ETH_ALEN]uint8
+  HwAddr [EthAlen]uint8
   Name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
 
   Config uint32 /* Bitmap of Ofppc* flags. */
@@ -270,45 +271,38 @@ type PhyPort struct {
 const phyPortSize = 48
 
 type SwitchFeaturesRequest struct {
-  Header
+  Xid uint32
 }
 
 func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
-  m.Length = HeaderSize
-  m.Type = OFPT_FEATURES_REQUEST
-  m.Version = OFP_VERSION
-  return binary.Write(w, binary.BigEndian, m)
+  h := Header{OFP_VERSION, OFPT_FEATURES_REQUEST, HeaderSize, m.Xid}
+  return binary.Write(w, binary.BigEndian, &h)
 }
-
 
 type SwitchFeatures struct {
   *Header
-  SwitchFeaturesPart
-  Ports []PhyPort  // Port definitions.
-}
-
-type SwitchFeaturesPart struct {
   DatapathId uint64   /* Datapath unique ID.  The lower 48-bits are for
     a MAC address while the upper 16-bits are
     implementer-defined. */
   NBuffers uint32   /* Max packets buffered at once. */
   NTables uint8   /* Number of tables supported by datapath. */
-  uint16
-  uint8
+  Pad [3]byte
   Capabilities uint32 /* Bitmap of support "Capabilities". */
   Actions ActionType   /* Bitmap of supported "ActionType"s. */
+  Ports []PhyPort  // Port definitions.
 }
 
 const switchFeaturesPartSize = 24
 
 func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
-  m.Header = nil
-  m.Ports = nil
-  b := bytes.NewBuffer(body)
-  err := binary.Read(b, binary.BigEndian, &m.SwitchFeaturesPart)
-  if err != nil {
-    return err
-  }
+  m.Header = h
+  buf := bytes.NewBuffer(body)
+  binary.Read(buf, binary.BigEndian, &m.DatapathId)
+  binary.Read(buf, binary.BigEndian, &m.NBuffers)
+  binary.Read(buf, binary.BigEndian, &m.NTables)
+  binary.Read(buf, binary.BigEndian, &m.Pad)
+  binary.Read(buf, binary.BigEndian, &m.Capabilities)
+  binary.Read(buf, binary.BigEndian, &m.Actions)
   portsSize := h.Length - HeaderSize - switchFeaturesPartSize
   if portsSize % phyPortSize != 0 {
     return os.NewError(fmt.Sprintf("FEATURES_REPLY misaligned (%d port size)", 
@@ -316,36 +310,42 @@ func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
   }
   numPorts := portsSize / phyPortSize
   m.Ports = make([]PhyPort, numPorts, numPorts)
-  err = binary.Read(b, binary.BigEndian, m.Ports)
-  if err != nil {
-    return err
-  }
-  m.Header = h
-  return nil
+  return binary.Read(buf, binary.BigEndian, m.Ports)
 }
 
-/* What changed about the physical port */
-type PortReason uint8
+// What changed about the physical port
 const (
-  OFPPR_ADD = iota  /* The port was added. */
-  OFPPR_DELETE   /* The port was removed. */
-  OFPPR_MODIFY  /* Some attribute of the port has changed. */
+  PprAdd = iota // The port was added.
+  PprDelete     // The port was removed.
+  PprModify     // Some attribute of the port has changed.
 )
 
 /* A physical port has changed in the datapath */
 type PortStatus struct {
-  Header
-  Reason PortReason  /* One of OFPPR_*. */
-  pad [7]uint8  /* Align to 64-bits. */
+  *Header
+  Reason uint8 // One of Ppr*
+  Pad [7]uint8      // Align to 64-bits
   Desc PhyPort
+}
+
+func (m *PortStatus)IsPortAdded() bool {
+  return m.Reason == PprAdd
+}
+
+func (m *PortStatus)IsPortDeleted() bool {
+  return m.Reason == PprDelete
+}
+
+func (m *PortStatus)IsPortModified() bool {
+  return m.Reason == PprModify
 }
 
 func (m *PortStatus)Read(h *Header, body []byte) os.Error {
   buf := bytes.NewBuffer(body)
-  m.Header = Header
+  m.Header = h
   binary.Read(buf, binary.BigEndian, &m.Reason)
-  binary.Read(buf, binary.BigEndian, &m.pad)
-  return binary.Read(buf, binary.BigEndian, &m.PhyPort)
+  binary.Read(buf, binary.BigEndian, &m.Pad)
+  return binary.Read(buf, binary.BigEndian, &m.Desc)
 }
 
 // Modify behavior of the physical port.
@@ -354,13 +354,12 @@ type PortMod struct {
   PortNo uint16
   // The hardware address is not configurable.  This is used to sanity-check the
   // request so it must be the same as returned in an PhyPort struct.
-  HwAddr [OFP_ETH_ALEN]uint8 
+  HwAddr [EthAlen]uint8 
   Config uint32     // Bitmap of Ofppc* flags.
   Mask uint32      // Bitmap of Ofppc* flags to be changed.
   Advertise uint32 // Bitmap of Ofppc* flags.  Zero all to prevent any action.
 }
 
-var pad64 = make([]byte,8,8)
 
 func (m *PortMod) Write(w io.Writer) os.Error {
   h := Header{OFP_VERSION, OFPT_PORT_MOD, 32, m.Xid}
@@ -374,20 +373,19 @@ func (m *PortMod) Write(w io.Writer) os.Error {
   return err
 }
 
-/* Why is this packet being sent to the controller? */
-type PacketInReason uint8
+// Why is this packet being sent to the controller?
 const (
-  ReasonNoMatch = iota  /* No matching flow. */
+  ReasonNoMatch uint8 = iota  /* No matching flow. */
   ReasonAction   /* Action explicitly output to controller. */
 )
 
 /* Packet received on port (datapath -> controller). */
 type PacketIn struct {
   *Header
-  BufferId uint32  /* ID assigned by datapath. */
-  TotalLen uint16  /* Full length of frame. */
-  InPort uint16  /* Port on which frame was received. */
-  Reason PortReason  /* Reason packet is being sent (one of OFPR_*) */
+  BufferId uint32 // ID assigned by datapath
+  TotalLen uint16 // Full length of frame
+  InPort uint16   // Port on which frame was received
+  Reason uint8    // Reason packet is being sent (one of Reason*)
   Pad uint8
 	/* Ethernet frame halfway through 32-bit word so the IP header is 32-bit 
    aligned.  The amount of data is inferred from the length field in the 
@@ -396,12 +394,16 @@ type PacketIn struct {
   EthFrame interface{}
 }
 
+func (m *PacketIn) PacketNotMatched() bool {
+  return m.Reason == ReasonNoMatch
+}
+
 func (m *PacketIn) Read(h *Header, body []byte) os.Error {
   m.Header = h
   m.BufferId = binary.BigEndian.Uint32(body[0:])
   m.TotalLen = binary.BigEndian.Uint16(body[4:])
   m.InPort = binary.BigEndian.Uint16(body[6:])
-  m.Reason = PortReason(body[9])
+  m.Reason = body[9]
   frm, err := packets.Parse(body[10:])
   m.EthFrame = frm
   if err != nil {
@@ -482,7 +484,7 @@ func (m *ActionVlanPcp) ActionLen() uint16 {
 }
 
 type ActionSetDlSrc struct {
-  DlAddr [OFP_ETH_ALEN]uint8  /* Ethernet address. */
+  DlAddr [EthAlen]uint8  /* Ethernet address. */
   uint32
   uint16
 }
@@ -496,7 +498,7 @@ func (m *ActionSetDlSrc) ActionLen() uint16 {
 }
 
 type ActionSetDlDst struct {
-  DlAddr [OFP_ETH_ALEN]uint8  /* Ethernet address. */
+  DlAddr [EthAlen]uint8  /* Ethernet address. */
   uint32
   uint16
 }
@@ -677,8 +679,8 @@ const OFP_VLAN_NONE = 0xffff
 type Match struct {
   Wildcards uint32  /* Wildcard fields. */
   InPort uint16    /* Input switch port. */
-  DlSrc [OFP_ETH_ALEN]uint8 /* Ethernet source address. */
-  DlDst [OFP_ETH_ALEN]uint8 /* Ethernet destination address. */
+  DlSrc [EthAlen]uint8 /* Ethernet source address. */
+  DlDst [EthAlen]uint8 /* Ethernet destination address. */
   VLanID uint16    /* Input VLAN id. */
   VLanPCP uint8   /* Input VLAN priority. */
   Pad0 uint8    /* Align to 64-bits */
