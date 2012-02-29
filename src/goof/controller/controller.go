@@ -14,6 +14,7 @@ type PacketInHandler func(msg *of.PacketIn)
 type SwitchFeaturesHandler func(msg *of.SwitchFeatures)
 type NewSwitchHandler func(sw *Switch)
 type ErrorHandler func(msg *of.Error)
+type PortStatusHandler func(msg *of.PortStatus)
 
 func emptyPacketInHandler(msg *of.PacketIn) {
 	log.Printf("PacketIn message discarded")
@@ -27,6 +28,10 @@ func emptyErrorHandler(msg *of.Error) {
   log.Printf("unhandled error: %v", msg)
 }
 
+func emptyPortStatusHandler(msg *of.PortStatus) {
+	log.Printf("unhandled OFPT_PORT_STATUS")
+}
+
 type Controller struct {
 	listener *net.TCPListener
 }
@@ -38,6 +43,7 @@ type Switch struct {
 	HandlePacketIn       PacketInHandler
 	HandleSwitchFeatures SwitchFeaturesHandler
 	HandleError ErrorHandler
+	HandlePortStatus PortStatusHandler
 }
 
 func NewController() *Controller {
@@ -58,7 +64,8 @@ func (self *Controller) Accept(port int, h NewSwitchHandler) error {
 		}
 		rb := bufio.NewReader(tcpConn)
 		sw := &Switch{tcpConn, rb, self, emptyPacketInHandler,
-			emptySwitchFeaturesHandler, emptyErrorHandler}
+			emptySwitchFeaturesHandler, emptyErrorHandler,
+		emptyPortStatusHandler}
 		go h(sw)
 	}
 
@@ -91,7 +98,6 @@ func (self *Switch) loop() {
 				self.Close()
 				return
 			}
-			log.Printf("Sent HELLO response.\n")
       err = self.Send(&of.SwitchFeaturesRequest{0})
 			if err != nil {
 				log.Printf("send features request failed, err = %s", err)
@@ -106,7 +112,8 @@ func (self *Switch) loop() {
 				self.Close()
 				return
 			}
-			log.Printf("echo reply")
+		case *of.PortStatus:
+			self.HandlePortStatus(m)
 		case *of.PacketIn:
 			self.HandlePacketIn(m)
 		case *of.SwitchFeatures:
@@ -155,6 +162,8 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
 		msg = new(of.PacketIn)
 	case of.OFPT_ERROR:
 		msg = new(of.Error)
+	case of.OFPT_PORT_STATUS:
+		msg = new(of.PortStatus)
 	default:
 		log.Printf("Unknown message, returning header %v", header.String())
 		return header

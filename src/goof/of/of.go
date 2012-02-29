@@ -92,7 +92,9 @@ func (m *EchoReply) Write(w io.Writer) error {
 	m.Length = uint16(HeaderSize + len(m.Body))
 	m.Type = OFPT_ECHO_REPLY
 	m.Version = OFP_VERSION
-	return binary.Write(w, binary.BigEndian, m)
+	binary.Write(w, binary.BigEndian, &m.Header)
+	_, err := w.Write(m.Body)
+	return err
 }
 
 func (m *EchoReply) Read(h *Header, body []byte) error {
@@ -187,21 +189,9 @@ func (m *SwitchFeatures) Read(h *Header, body []byte) error {
 /* A physical port has changed in the datapath */
 type PortStatus struct {
 	*Header
-	Reason uint8    // One of Ppr*
+	Reason Ppr    // One of Ppr*
 	Pad    [7]uint8 // Align to 64-bits
 	Desc   PhyPort
-}
-
-func (m *PortStatus) IsPortAdded() bool {
-	return m.Reason == PprAdd
-}
-
-func (m *PortStatus) IsPortDeleted() bool {
-	return m.Reason == PprDelete
-}
-
-func (m *PortStatus) IsPortModified() bool {
-	return m.Reason == PprModify
 }
 
 func (m *PortStatus) Read(h *Header, body []byte) error {

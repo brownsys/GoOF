@@ -143,10 +143,12 @@ const (
 )
 
 // What changed about the physical port
+type Ppr uint8
+
 const (
-	PprAdd    = iota // The port was added.
-	PprDelete        // The port was removed.
-	PprModify        // Some attribute of the port has changed.
+	PortAdd Ppr   = iota // The port was added.
+	PortDeleted          // The port was removed.
+	PortModified         // Some attribute of the port has changed.
 )
 
 // Why is this packet being sent to the controller?

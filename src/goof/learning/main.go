@@ -21,7 +21,6 @@ func newSwitch(sw *controller.Switch) {
     routes[msg.EthFrame.SrcMAC] = msg.InPort
     outPort, found := routes[msg.EthFrame.DstMAC]
     if !found {
-			log.Printf("Sending flood ...")
       err := sw.Send(&of.FlowMod{
       Xid: msg.Xid,
       Match: of.Match{
@@ -35,6 +34,7 @@ func newSwitch(sw *controller.Switch) {
       if err != nil {
         log.Printf("Erroring sending: %v", err)
       }
+			log.Printf("flooding %v", msg.EthFrame.EthernetHeader)
     } else {
       err := sw.Send(&of.FlowMod{
       Xid: msg.Xid,
@@ -52,6 +52,13 @@ func newSwitch(sw *controller.Switch) {
 
     }
   }
+	sw.HandleSwitchFeatures = func(msg *of.SwitchFeatures) {
+		log.Printf("Datapath %x online", msg.DatapathId)
+	}
+
+	sw.HandlePortStatus = func(msg *of.PortStatus) {
+		// silently ignore
+	}
 	
   sw.Serve()
 }
