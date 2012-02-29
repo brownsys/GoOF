@@ -10,12 +10,12 @@ import (
 )
 
 // Messages from the switch to the controller support this interface.
-type Read interface {
+type FromSwitch interface {
   Read(header *Header, body []byte) os.Error
 }
 
 // Messages from the controller to the switch support this interface.
-type Write interface {
+type ToSwitch interface {
   Write(w io.Writer) os.Error
 }
 
@@ -174,76 +174,50 @@ const OFP_DEFAULT_MISS_SEND_LEN uint16 = 128
 type  ConfigFlags uint16
 
 const (
-  /* Handling of IP fragments. */
-  FragNormal ConfigFlags = 0 /* No special handling for fragments. */
-  FragDrop ConfigFlags = 1  /* Drop fragments. */
-  /* Reassemble (only if OFPC_IP_REASM set). */
-  FragReasm ConfigFlags = 2 
+  FragNormal ConfigFlags = 0 // No special handling for IP fragments.
+  FragDrop ConfigFlags = 1   // Drop fragments.
+  FragReasm ConfigFlags = 2  // Reassemble (only if OFPC_IP_REASM set).
   FragMask ConfigFlags = 3
 )
 
-/* Switch configuration. */
 type SwitchConfig struct {
   Xid uint32
-  Flags ConfigFlags   /* OFPC_* flags. */
-  MissSendLen uint16 /* Max bytes of new flow that datapath should
-    send to the controller. */
+  Flags ConfigFlags   // OFPC_* flags
+  MissSendLen uint16 // Max bytes of new flow to send to the controller
 }
 
-func (m *SwitchConfig) GetSize() uint16 {
-  return 12
-}
+const switchConfigSize uint16 = 12
 
 func (m *SwitchConfig) Write(w io.Writer) os.Error {
-  h := &Header{OFP_VERSION, OFPT_FLOW_MOD, m.GetSize(), m.Xid}
-  err := binary.Write(w, binary.BigEndian, h)
-  if err != nil {
-    return err
-  }
-  err = binary.Write(w, binary.BigEndian, m.Flags)
-  if err != nil {
-    return err
-  }
-  err = binary.Write(w, binary.BigEndian, m.MissSendLen)
-  if err != nil {
-    return err
-  }
-  return nil
+  h := Header{OFP_VERSION, OFPT_FLOW_MOD, switchConfigSize, m.Xid}
+  binary.Write(w, binary.BigEndian, &h)
+  binary.Write(w, binary.BigEndian, m.Flags)
+  return binary.Write(w, binary.BigEndian, m.MissSendLen)
 }
 
-/* Capabilities supported by the datapath. */
-type Capabilities uint32
+// Capabilities supported by the datapath.
 const (
-  OFPC_FLOW_STATS Capabilities = 1 << 0  /* Flow statistics. */
-  OFPC_TABLE_STATS Capabilities = 1 << 1  /* Table statistics. */
-  OFPC_PORT_STATS Capabilities = 1 << 2  /* Port statistics. */
-  OFPC_STP Capabilities = 1 << 3 /* 802.1d spanning tree. */
-  OFPC_RESERVED Capabilities = 1 << 4 /* Reserved must be zero. */
-  OFPC_IP_REASM Capabilities = 1 << 5 /* Can reassemble IP fragments. */
-  OFPC_QUEUE_STATS Capabilities = 1 << 6 /* Queue statistics. */
-  /* Match IP addresses in ARP pkts. */
-  OFPC_ARP_MATCH_IP Capabilities = 1 << 7 
+  FlowStats = 1 << 0   /* Flow statistics. */
+  TableStats = 1 << 1  /* Table statistics. */
+  PortStats = 1 << 2   /* Port statistics. */
+  STP = 1 << 3          /* 802.1d spanning tree. */
+  ofcpReserved = 1 << 4     /* Reserved must be zero. */
+  IpReasm = 1 << 5     /* Can reassemble IP fragments. */
+  QueueStats = 1 << 6  /* Queue statistics. */
+  ArpMatchIp = 1 << 7 /* Match IP addresses in ARP pkts. */
 )
 
-/* Flags to indicate behavior of the physical port.  These flags are
- * used in PhyPort to describe the current configuration.  They are
- * used in the PortMod message to configure the port's behavior.
- */
-type PortConfig uint32
+// Flags to indicate behavior of the physical port.  These flags are
+// used in PhyPort to describe the current configuration.  They are
+// used in the PortMod message to configure the port's behavior.
 const (
-  OFPPC_PORT_DOWN PortConfig = 1 << 0  /* Port is administratively down. */
-  /* Disable 802.1D spanning tree on port. */
-  OFPPC_NO_STP PortConfig = 1 << 1  
-  /* Drop all packets except 802.1D spanning tree packets. */
-  OFPPC_NO_RECV PortConfig = 1 << 2 
-  /* Drop received 802.1D STP packets. */
-  OFPPC_NO_RECV_STP PortConfig = 1 << 3  
-  /* Do not include this port when flooding. */
-  OFPPC_NO_FLOOD PortConfig = 1 << 4  
-  /* Drop packets forwarded to port. */
-  OFPPC_NO_FWD PortConfig = 1 << 5  
-  /* Do not send packet-in msgs for port. */
-  OFPPC_NO_PACKET_IN PortConfig = 1 << 6   
+  PortDown uint32 = 1 << 0 // port is administratively down
+  NoStp uint32 = 1 << 1 // disable 802.1d spanning tree on port
+  NoRecv uint32 = 1 << 2 // drop all packets except 802.1d spanning tree packets
+  NoRecvStp uint32 = 1 << 3  // drop received 802.1d stp packets
+  NoFlood uint32 = 1 << 4 // do not include this port when flooding
+  NoFwd uint32 = 1 << 5 // drop packets forwarded to port
+  NoPacketIn uint32 = 1 << 6 // do not send packet-in msgs for port
 )
 
 /* Current state of the physical port.  These are not configurable from
@@ -291,7 +265,7 @@ type PhyPort struct {
   HwAddr [OFP_ETH_ALEN]uint8
   Name [OFP_MAX_PORT_NAME_LEN]uint8 /* Null-terminated */
 
-  Config PortConfig /* Bitmap of OFPPC_* flags. */
+  Config uint32 /* Bitmap of OFPPC_* flags. */
   State PortState   /* Bitmap of OFPPS_* flags. */
 
   /* Bitmaps of OFPPF_* that describe features.  All bits zeroed if
@@ -301,7 +275,7 @@ type PhyPort struct {
   Supported PortFeatures /* Features supported by the port. */
   Peer PortFeatures /* Features advertised by peer. */
 }
-const PhyPortSize = 48
+const phyPortSize = 48
 
 type SwitchFeaturesRequest struct {
   Header
@@ -316,30 +290,9 @@ func (m *SwitchFeaturesRequest) Write(w io.Writer) os.Error {
 
 
 type SwitchFeatures struct {
-  Header
+  *Header
   SwitchFeaturesPart
   Ports []PhyPort  // Port definitions.
-}
-
-func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
-  b := bytes.NewBuffer(body)
-  err := binary.Read(b, binary.BigEndian, &m.SwitchFeaturesPart)
-  if err != nil {
-    return err
-  }
-  portsSize := h.Length - HeaderSize - SwitchFeaturesPartSize
-  if portsSize % PhyPortSize != 0 {
-    return os.NewError(fmt.Sprintf("OFPT_FEATURES_REPLY misaligned; ports take %d bytes", 
-                       portsSize))
-  }
-  numPorts := portsSize / PhyPortSize
-  m.Ports = make([]PhyPort, numPorts, numPorts)
-  err = binary.Read(b, binary.BigEndian, m.Ports)
-  if err != nil {
-    return err
-  }
-  // TODO: ports
-  return nil
 }
 
 type SwitchFeaturesPart struct {
@@ -348,13 +301,36 @@ type SwitchFeaturesPart struct {
     implementer-defined. */
   NBuffers uint32   /* Max packets buffered at once. */
   NTables uint8   /* Number of tables supported by datapath. */
-  Pad [3]uint8   /* Align to 64-bits. */
-  /* Features. */
-  Capabilities Capabilities  /* Bitmap of support "Capabilities". */
+  uint16
+  uint8
+  Capabilities uint32 /* Bitmap of support "Capabilities". */
   Actions ActionType   /* Bitmap of supported "ActionType"s. */
 }
-const SwitchFeaturesPartSize = 24
 
+const switchFeaturesPartSize = 24
+
+func (m *SwitchFeatures) Read(h *Header, body []byte) os.Error {
+  m.Header = nil
+  m.Ports = nil
+  b := bytes.NewBuffer(body)
+  err := binary.Read(b, binary.BigEndian, &m.SwitchFeaturesPart)
+  if err != nil {
+    return err
+  }
+  portsSize := h.Length - HeaderSize - switchFeaturesPartSize
+  if portsSize % phyPortSize != 0 {
+    return os.NewError(fmt.Sprintf("FEATURES_REPLY misaligned (%d port size)", 
+                       portsSize))
+  }
+  numPorts := portsSize / phyPortSize
+  m.Ports = make([]PhyPort, numPorts, numPorts)
+  err = binary.Read(b, binary.BigEndian, m.Ports)
+  if err != nil {
+    return err
+  }
+  m.Header = h
+  return nil
+}
 
 /* What changed about the physical port */
 type PortReason uint8
@@ -382,25 +358,29 @@ type PortMod struct {
      be the same as returned in an
      PhyPort struct. */
 
-  config PortConfig  /* Bitmap of OFPPC_* flags. */
-  mask PortConfig  /* Bitmap of OFPPC_* flags to be changed. */
+  Config uint32 /* Bitmap of OFPPC_* flags. */
+  Mask uint32  /* Bitmap of OFPPC_* flags to be changed. */
 
-  advertise PortFeatures /* Bitmap of "PortFeatures"s.  Zero all
+  Advertise PortFeatures /* Bitmap of "PortFeatures"s.  Zero all
      bits to prevent any action taking place. */
-  pad [4]uint8  /* Pad to 64-bits. */
+  uint64  /* Pad to 64-bits. */
 }
 
 /* Why is this packet being sent to the controller? */
 type PacketInReason uint8
 const (
-  OFPR_NO_MATCH = iota  /* No matching flow. */
-  OFPR_ACTION   /* Action explicitly output to controller. */
+  ReasonNoMatch = iota  /* No matching flow. */
+  ReasonAction   /* Action explicitly output to controller. */
 )
 
 /* Packet received on port (datapath -> controller). */
 type PacketIn struct {
-  Header
-  PacketInPart
+  *Header
+  BufferId uint32  /* ID assigned by datapath. */
+  TotalLen uint16  /* Full length of frame. */
+  InPort uint16  /* Port on which frame was received. */
+  Reason PortReason  /* Reason packet is being sent (one of OFPR_*) */
+  Pad uint8
 	/* Ethernet frame halfway through 32-bit word so the IP header is 32-bit 
    aligned.  The amount of data is inferred from the length field in the 
    header.  Because of padding offsetof(struct PacketIn data) == 
@@ -409,27 +389,21 @@ type PacketIn struct {
 }
 
 func (m *PacketIn) Read(h *Header, body []byte) os.Error {
-  b := bytes.NewBuffer(body)
-  err := binary.Read(b, binary.BigEndian, &m.PacketInPart)
-  if err != nil {
-    return err
-  }
-  frm, err := packets.Parse(b)
+  m.Header = h
+  m.BufferId = binary.BigEndian.Uint32(body[0:])
+  m.TotalLen = binary.BigEndian.Uint16(body[4:])
+  m.InPort = binary.BigEndian.Uint16(body[6:])
+  m.Reason = PortReason(body[9])
+  frm, err := packets.Parse(body[10:])
   m.EthFrame = frm
   if err != nil {
     return err
   }
-  return err
+  return nil
 }
 
-type PacketInPart struct {
-  BufferId uint32  /* ID assigned by datapath. */
-  TotalLen uint16  /* Full length of frame. */
-  InPort uint16  /* Port on which frame was received. */
-  Reason PortReason  /* Reason packet is being sent (one of OFPR_*) */
-  Pad uint8
-}
-const PacketInPartSize = 10
+///////////////////////////////////////////////////////////////////////////////
+// Actions
 
 type ActionType uint16
 const (
@@ -448,10 +422,10 @@ const (
   OFPAT_VENDOR ActionType = 0xffff
 )
 
-// Added by Arjun.
-type ActionHeader struct {
-  Type ActionType
-  Len uint16
+func genericWriteAction(w io.Writer, a Action, t ActionType) os.Error {
+  binary.Write(w, binary.BigEndian, t)
+  binary.Write(w, binary.BigEndian, a.ActionLen())
+  return binary.Write(w, binary.BigEndian, a)
 }
 
 /* Action structure for OFPAT_OUTPUT which sends packets out 'port'.
@@ -463,78 +437,170 @@ type ActionOutput struct {
   MaxLen uint16   /* Max length to send to controller. */
 }
 
-func (m *ActionOutput) WriteAction(w io.Writer) os.Error {
-  h := &ActionHeader{OFPAT_OUTPUT, m.ActionLen()}
-  err := binary.Write(w, binary.BigEndian, h)
-  if err != nil {
-    return err
-  }
-  return binary.Write(w, binary.BigEndian, m)
-}
-
 func (m *ActionOutput) ActionLen() uint16 {
   return 8
 }
 
-/* Action structure for OFPAT_SET_VLAN_VID. */
+func (m *ActionOutput) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_OUTPUT) 
+}
+
+
 type ActionVlanVid struct {
-  ActionHeader
   VlanVid uint16   /* VLAN id. */
   pad [2]uint8
 }
 
-/* Action structure for OFPAT_SET_VLAN_PCP. */
+func (m *ActionVlanVid) ActionLen() uint16 {
+  return 8
+}
+
+func (m *ActionVlanVid) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_VLAN_VID)
+}
+
 type ActionVlanPcp struct {
-  ActionHeader
   VlanPcp uint8   /* VLAN priority. */
-  pad [3]uint8
+  uint16
+  uint8
 }
 
-/* Action structure for OFPAT_SET_DL_SRC/DST. */
-type ActionDlAddr struct {
-  ActionHeader
+func (m *ActionVlanPcp) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_VLAN_PCP)
+}
+
+func (m *ActionVlanPcp) ActionLen() uint16 {
+  return 8
+}
+
+type ActionSetDlSrc struct {
   DlAddr [OFP_ETH_ALEN]uint8  /* Ethernet address. */
-  pad [6]uint8
+  uint32
+  uint16
 }
 
-/* Action structure for OFPAT_SET_NW_SRC/DST. */
-type ActionNwAddr struct {
-  ActionHeader
+func (m *ActionSetDlSrc) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_DL_SRC)
+}
+
+func (m *ActionSetDlSrc) ActionLen() uint16 {
+  return 16
+}
+
+type ActionSetDlDst struct {
+  DlAddr [OFP_ETH_ALEN]uint8  /* Ethernet address. */
+  uint32
+  uint16
+}
+
+func (m *ActionSetDlDst) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_DL_DST)
+}
+
+func (m *ActionSetDlDst) ActionLen() uint16 {
+  return 16
+}
+
+type ActionNwAddrSrc struct {
   NwAddr uint32  /* IP address. */
 }
 
-
-/* Action structure for OFPAT_SET_TP_SRC/DST. */
-type ActionTpPort struct {
-  ActionHeader
-  TpPort uint16   /* TCP/UDP port. */
-  pad [2]uint8
+func (m *ActionNwAddrSrc) ActionLen() uint16 {
+  return 8
 }
 
+func (m *ActionNwAddrSrc) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_NW_SRC)
+}
+
+type ActionNwAddrDst struct {
+  NwAddr uint32  /* IP address. */
+}
+
+func (m *ActionNwAddrDst) ActionLen() uint16 {
+  return 8
+}
+
+func (m *ActionNwAddrDst) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_NW_DST)
+}
+
+
+type ActionTpPortSrc struct {
+  TpPort uint16   /* TCP/UDP port. */
+  uint16
+}
+
+func (m *ActionTpPortSrc) ActionLen() uint16 {
+  return 8
+}
+
+func (m *ActionTpPortSrc) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_TP_SRC)
+}
+
+type ActionTpPortDst struct {
+  TpPort uint16   /* TCP/UDP port. */
+  uint16
+}
+
+func (m *ActionTpPortDst) ActionLen() uint16 {
+  return 8
+}
+
+func (m *ActionTpPortDst) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_TP_DST)
+}
 
 /* Action structure for OFPAT_SET_NW_TOS. */
 type ActionNwTos struct {
-  ActionHeader
   NwTos uint8   /* IP ToS (DSCP field 6 bits). */
-  pad [3]uint8
+  uint16
+  uint8
 }
 
-/* Action header for OFPAT_VENDOR. The rest of the body is vendor-defined. */
-type ActionVendorHeader struct {
-  ActionHeader
-  vendor uint32  /* Vendor ID which takes the same form
-       as in "struct VendorHeader". */
+func (m *ActionNwTos) ActionLen() uint16 {
+  return 8
 }
 
+func (m *ActionNwTos) WriteAction(w io.Writer) os.Error {
+  return genericWriteAction(w, m, OFPAT_SET_NW_TOS)
+}
 
-/* Send packet (controller -> datapath). */
 type PacketOut struct {
-  Header
-  BufferId uint32   /* ID assigned by datapath (-1 if none). */
-  InPort uint16   /* Packet's input port (OFPP_NONE if none). */
-  ActionsLen uint16  /* Size of action array in bytes. */
-  actions interface{} /* Actions */
+  Xid uint32        // Transaction ID
+  BufferId int32    // ID assigned by datapath (-1 if none)
+  InPort uint16     // Packet's input port (OFPP_NONE if none)
+  Actions []Action  // Actions 
+  Data []byte      // Only meaningful if BufferId is -1
 }
+
+func (m *PacketOut) actionsLen() uint16 {
+  size := uint16(0)
+  for _, a := range m.Actions {
+    size = size + a.ActionLen()
+  }
+  return size
+}
+
+func (m *PacketOut) Write(w io.Writer) os.Error {
+  actionsLen := m.actionsLen()
+  dataLen := uint16(len(m.Data))
+  h := Header{OFP_VERSION, OFPT_PACKET_OUT, actionsLen + dataLen + 16, m.Xid}
+  binary.Write(w, binary.BigEndian, &h)
+  binary.Write(w, binary.BigEndian, m.BufferId)
+  binary.Write(w, binary.BigEndian, m.InPort)
+  binary.Write(w, binary.BigEndian, actionsLen)
+  for _, a := range m.Actions {
+    a.WriteAction(w)
+  }
+  return binary.Write(w, binary.BigEndian, m.Data)
+}
+
+
+
+
+
 
 type FlowModCommand uint16
 const (
@@ -629,15 +695,15 @@ const matchSize = 40
  * is permanent. */
 const FlowPermanent = 0
 
-/* By default choose a priority in the middle. */
-const DefaultPriority = 0x8000
-
 const (
   SendFlowRem uint16 = 1 << 0  /* Send flow removed message when flow
                 * expires or is deleted. */
   CheckOverlap uint16 = 1 << 1 /* Check for overlapping entries first. */
   Emergency uint16 = 1 << 2  /* Remark this is for emergency. */
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// Flow modification message
 
 /* Flow setup and teardown (controller -> datapath). */
 type FlowMod struct {
@@ -693,7 +759,7 @@ type FlowModPart struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Flow removed reason
+// Flow removed message
 
 /* Why was this flow removed? */
 type FlowRemovedReason uint8
@@ -704,7 +770,7 @@ const (
   RemovedReasonDelete /* Evicted by a DELETE flow mod. */
 )
 
-/* Flow removed (datapath -> controller). */
+// Message sent from datapath to controller when a flow is removed.
 type FlowRemoved struct {
   Header
   FlowRemovedPart

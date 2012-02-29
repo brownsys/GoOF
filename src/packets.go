@@ -1,10 +1,13 @@
 package packets
 
 import (
-  "io"
+  "bytes"
   "os"
   "encoding/binary"
 )
+
+type Packet interface {
+}
 
 type EthType uint16
 const EthTypeIP EthType = 0x0800
@@ -47,7 +50,8 @@ type EthernetFrame struct {
   EthernetHeader
 }
 
-func Parse(buf io.Reader) (r interface{}, err os.Error) {
+func Parse(body []byte) (r interface{}, err os.Error) {
+  buf := bytes.NewBuffer(body)
   var eth EthernetHeader
   err = binary.Read(buf, binary.BigEndian, &eth)
   if err != nil {
@@ -79,3 +83,5 @@ func Parse(buf io.Reader) (r interface{}, err os.Error) {
 
   return &EthernetFrame{eth}, os.NewError("unknown ethernet type")
 }
+
+

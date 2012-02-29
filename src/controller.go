@@ -60,7 +60,7 @@ func (self *Controller)Accept(port int, h NewSwitchHandler) os.Error {
   panic("unreachable code")
 }
 
-func (self *Switch)Send(msg of.Write) os.Error {
+func (self *Switch)Send(msg of.ToSwitch) os.Error {
   return msg.Write(self.tcpConn)
 }
 
@@ -138,7 +138,7 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
     log.Panicf("error reading body; %s", err)
   }
   
-  var msg of.Read
+  var msg of.FromSwitch
   switch (header.Type) {
   case of.OFPT_HELLO:
     msg = new(of.Hello)
@@ -155,6 +155,9 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
     return header
   }
   err = msg.Read(&header, rawBody)
+  if err != nil {
+    log.Printf("Error reading msg: %v", err)
+  }
   return msg
 
 }
