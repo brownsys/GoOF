@@ -38,6 +38,13 @@ type Header struct {
 	   to facilitate pairing. */
 }
 
+
+func (h *Header) String() string {
+  return fmt.Sprintf("Type=%v, Version=%x, Length=%d, Xid=%d", h.Type, 
+		h.Version, h.Length, h.Xid)
+}
+
+
 const HeaderSize = 8
 
 /* OFPT_HELLO.  This message has an empty body but implementations must
@@ -263,170 +270,6 @@ func (m *PacketIn) Read(h *Header, body []byte) error {
 	return nil
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Actions
-
-type ActionType uint16
-
-const (
-	OFPAT_OUTPUT       ActionType = iota /* Output to switch port. */
-	OFPAT_SET_VLAN_VID                   /* Set the 802.1q VLAN id. */
-	OFPAT_SET_VLAN_PCP                   /* Set the 802.1q priority. */
-	OFPAT_STRIP_VLAN                     /* Strip the 802.1q header. */
-	OFPAT_SET_DL_SRC                     /* Ethernet source address. */
-	OFPAT_SET_DL_DST                     /* Ethernet destination address. */
-	OFPAT_SET_NW_SRC                     /* IP source address. */
-	OFPAT_SET_NW_DST                     /* IP destination address. */
-	OFPAT_SET_NW_TOS                     /* IP ToS (DSCP field 6 bits). */
-	OFPAT_SET_TP_SRC                     /* TCP/UDP source port. */
-	OFPAT_SET_TP_DST                     /* TCP/UDP destination port. */
-	OFPAT_ENQUEUE                        /* Output to queue.  */
-	OFPAT_VENDOR       ActionType = 0xffff
-)
-
-func genericWriteAction(w io.Writer, a Action, t ActionType) error {
-	binary.Write(w, binary.BigEndian, t)
-	binary.Write(w, binary.BigEndian, a.ActionLen())
-	return binary.Write(w, binary.BigEndian, a)
-}
-
-/* Action structure for OFPAT_OUTPUT which sends packets out 'port'.
- * When the 'port' is the OFPP_CONTROLLER 'MaxLen' indicates the max
- * number of bytes to send.  A 'MaxLen' of zero means no bytes of the
- * packet should be sent.*/
-type ActionOutput struct {
-	Port   uint16 /* Output port. */
-	MaxLen uint16 /* Max length to send to controller. */
-}
-
-func (m *ActionOutput) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionOutput) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_OUTPUT)
-}
-
-type ActionVlanVid struct {
-	VlanVid uint16 /* VLAN id. */
-	pad     [2]uint8
-}
-
-func (m *ActionVlanVid) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionVlanVid) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_VLAN_VID)
-}
-
-type ActionVlanPcp struct {
-	VlanPcp uint8 /* VLAN priority. */
-	uint16
-	uint8
-}
-
-func (m *ActionVlanPcp) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_VLAN_PCP)
-}
-
-func (m *ActionVlanPcp) ActionLen() uint16 {
-	return 8
-}
-
-type ActionSetDlSrc struct {
-	DlAddr [EthAlen]uint8 /* Ethernet address. */
-	uint32
-	uint16
-}
-
-func (m *ActionSetDlSrc) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_DL_SRC)
-}
-
-func (m *ActionSetDlSrc) ActionLen() uint16 {
-	return 16
-}
-
-type ActionSetDlDst struct {
-	DlAddr [EthAlen]uint8 /* Ethernet address. */
-	uint32
-	uint16
-}
-
-func (m *ActionSetDlDst) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_DL_DST)
-}
-
-func (m *ActionSetDlDst) ActionLen() uint16 {
-	return 16
-}
-
-type ActionNwAddrSrc struct {
-	NwAddr uint32 /* IP address. */
-}
-
-func (m *ActionNwAddrSrc) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionNwAddrSrc) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_NW_SRC)
-}
-
-type ActionNwAddrDst struct {
-	NwAddr uint32 /* IP address. */
-}
-
-func (m *ActionNwAddrDst) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionNwAddrDst) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_NW_DST)
-}
-
-type ActionTpPortSrc struct {
-	TpPort uint16 /* TCP/UDP port. */
-	uint16
-}
-
-func (m *ActionTpPortSrc) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionTpPortSrc) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_TP_SRC)
-}
-
-type ActionTpPortDst struct {
-	TpPort uint16 /* TCP/UDP port. */
-	uint16
-}
-
-func (m *ActionTpPortDst) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionTpPortDst) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_TP_DST)
-}
-
-/* Action structure for OFPAT_SET_NW_TOS. */
-type ActionNwTos struct {
-	NwTos uint8 /* IP ToS (DSCP field 6 bits). */
-	uint16
-	uint8
-}
-
-func (m *ActionNwTos) ActionLen() uint16 {
-	return 8
-}
-
-func (m *ActionNwTos) WriteAction(w io.Writer) error {
-	return genericWriteAction(w, m, OFPAT_SET_NW_TOS)
-}
-
 type PacketOut struct {
 	Xid      uint32   // Transaction ID
 	BufferId int32    // ID assigned by datapath (-1 if none)
@@ -458,66 +301,6 @@ func (m *PacketOut) Write(w io.Writer) error {
 }
 
 type FlowModCommand uint16
-
-const (
-	FCAdd          = iota /* New flow. */
-	FCModify              /* Modify all matching flows. */
-	FCModifyStrict        /* Modify entry strictly matching wildcards */
-	FCDelete              /* Delete all matching flows. */
-	FCDeleteStrict        /* Strictly match wildcards and priority. */
-)
-
-/* Flow wildcards. */
-const (
-	FwInPort  uint32 = 1 << 0 /* Switch input port. */
-	FwDlVlan  uint32 = 1 << 1 /* VLAN id. */
-	FwDlSrc   uint32 = 1 << 2 /* Ethernet source address. */
-	FwDlDst   uint32 = 1 << 3 /* Ethernet destination address. */
-	FwDlType  uint32 = 1 << 4 /* Ethernet frame type. */
-	FwNwProto uint32 = 1 << 5 /* IP protocol. */
-	FwTpSrc   uint32 = 1 << 6 /* TCP/UDP source port. */
-	FwTpDst   uint32 = 1 << 7 /* TCP/UDP destination port. */
-
-	/* IP source address wildcard bit count.  0 is exact match 1 ignores the
-	 * LSB 2 ignores the 2 least-significant bits ... 32 and higher wildcard
-	 * the entire field.  This is the *opposite* of the usual convention where
-	 * e.g. /24 indicates that 8 bits (not 24 bits) are wildcarded. */
-	FwNwSrcShift uint32 = 8
-	FwNwSrcBits  uint32 = 6
-	FwNwSrcMask  uint32 = ((1 << FwNwSrcBits) - 1) << FwNwSrcShift
-	FwNwSrcAll   uint32 = 32 << FwNwSrcShift
-
-	/* IP destination address wildcard bit count.  Same format as source. */
-	FwNwDstShift uint32 = 14
-	FwNwDstBits  uint32 = 6
-	FwNwDstMask  uint32 = ((1 << FwNwDstBits) - 1) << FwNwDstShift
-	FwNwDstAll   uint32 = 32 << FwNwDstShift
-
-	FwDlVlanPcp uint32 = 1 << 20 /* VLAN priority. */
-	FwNwTos      uint32 = 1 << 21 /* IP ToS (DSCP field 6 bits). */
-	FwAll uint32 = ((1 << 22) - 1) // Wildcard all fields
-)
-
-/* The wildcards for ICMP type and code fields use the transport source
- * and destination port fields respectively. */
-const FW_ICMP_TYPE = FwTpSrc
-const FW_ICMP_CODE = FwTpDst
-
-/* Values below this cutoff are 802.3 packets and the two bytes
- * following MAC addresses are used as a frame length.  Otherwise the
- * two bytes are used as the Ethernet type.
- */
-const OFP_DL_TYPE_ETH2_CUTOFF = 0x0600
-
-/* Value of dl_type to indicate that the frame does not include an
- * Ethernet type.
- */
-const OFP_DL_TYPE_NOT_ETH_TYPE = 0x05ff
-
-/* The VLAN id is 12-bits so we can use the entire 16 bits to indicate
- * special conditions.  All ones indicates that no VLAN id was set.
- */
-const OFP_VLAN_NONE = 0xffff
 
 /* Fields to match against flows */
 type Match struct {
@@ -664,7 +447,7 @@ const (
 	QueueOpFailed                  /* Queue operation failed. */
 )
 
-type ErrorMsg struct {
+type Error struct {
 	Header
 	Type ErrorType
 	Code uint16
@@ -672,7 +455,7 @@ type ErrorMsg struct {
 	Data []byte
 }
 
-func (m *ErrorMsg) Read(h *Header, body []byte) error {
+func (m *Error) Read(h *Header, body []byte) error {
 	buf := bytes.NewBuffer(body)
 	m.Header = *h
 	err := binary.Read(buf, binary.BigEndian, &m.Type)
@@ -685,6 +468,28 @@ func (m *ErrorMsg) Read(h *Header, body []byte) error {
 	}
 	m.Data = body[4:] // rest of body
 	return nil
+}
+
+func errorTypeToString(t ErrorType) string {
+	switch (t) {
+	case HelloFailed:
+		return "OFPET_HELLO_FAILED"
+	case BadRequest:
+		return "OFPET_BAD_REQUEST"
+	case BadAction:
+		return "OFPET_BAD_ACTION"
+	case FlowModFailed:
+		return "OFPET_FLOW_MOD_FAILED"
+	case PortModFailed:
+		return "OFPET_FLOW_MOD_FAILED"
+	case QueueOpFailed:
+		return "OFPET_QUEUE_OP_FAILED"
+	}
+	return fmt.Sprintf("unknown error (code: %v)", t)
+}
+
+func (m *Error) String() string {
+  return fmt.Sprintf("Type=%v", errorTypeToString(m.Type))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

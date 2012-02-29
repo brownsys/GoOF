@@ -13,6 +13,7 @@ import (
 type PacketInHandler func(msg *of.PacketIn)
 type SwitchFeaturesHandler func(msg *of.SwitchFeatures)
 type NewSwitchHandler func(sw *Switch)
+type ErrorHandler func(msg *of.Error)
 
 func emptyPacketInHandler(msg *of.PacketIn) {
 	log.Printf("PacketIn message discarded")
@@ -20,6 +21,10 @@ func emptyPacketInHandler(msg *of.PacketIn) {
 
 func emptySwitchFeaturesHandler(msg *of.SwitchFeatures) {
 	log.Printf("SwitchFeatures message discarded")
+}
+
+func emptyErrorHandler(msg *of.Error) {
+  log.Printf("unhandled error: %v", msg)
 }
 
 type Controller struct {
@@ -32,6 +37,7 @@ type Switch struct {
 	controller           *Controller
 	HandlePacketIn       PacketInHandler
 	HandleSwitchFeatures SwitchFeaturesHandler
+	HandleError ErrorHandler
 }
 
 func NewController() *Controller {
@@ -52,7 +58,7 @@ func (self *Controller) Accept(port int, h NewSwitchHandler) error {
 		}
 		rb := bufio.NewReader(tcpConn)
 		sw := &Switch{tcpConn, rb, self, emptyPacketInHandler,
-			emptySwitchFeaturesHandler}
+			emptySwitchFeaturesHandler, emptyErrorHandler}
 		go h(sw)
 	}
 
@@ -68,16 +74,6 @@ func (self *Switch) Recv() interface{} {
 }
 
 func (self *Switch) Serve() {
-	err := self.Send(&of.Hello{})
-	if err != nil {
-		log.Printf("Send HELLO failed, err=%s", err)
-		return
-	}
-	err = self.Send(&of.SwitchFeaturesRequest{})
-	if err != nil {
-		log.Printf("First SWITCH_FEATURES_REQUEST failed, err=%s", err)
-		return
-	}
 	self.loop()
 	log.Panicf("Unreachable code in (*Switch)serve")
 }
@@ -96,6 +92,12 @@ func (self *Switch) loop() {
 				return
 			}
 			log.Printf("Sent HELLO response.\n")
+      err = self.Send(&of.SwitchFeaturesRequest{0})
+			if err != nil {
+				log.Printf("send features request failed, err = %s", err)
+				self.Close()
+				return
+			}
 		case *of.EchoRequest:
 			err := self.Send(&of.EchoReply{of.Header{Xid: m.Xid},
 				m.Body})
@@ -109,6 +111,8 @@ func (self *Switch) loop() {
 			self.HandlePacketIn(m)
 		case *of.SwitchFeatures:
 			self.HandleSwitchFeatures(m)
+		case *of.Error:
+			self.HandleError(m)
 		default:
 			log.Printf("unhandled msg recvd")
 		}
@@ -149,8 +153,10 @@ func ReadMsg(netBuf *bufio.Reader) interface{} {
 		msg = new(of.SwitchFeatures)
 	case of.OFPT_PACKET_IN:
 		msg = new(of.PacketIn)
+	case of.OFPT_ERROR:
+		msg = new(of.Error)
 	default:
-		log.Printf("Unknown message, returning header %s", header)
+		log.Printf("Unknown message, returning header %v", header.String())
 		return header
 	}
 	err = msg.Read(&header, rawBody)

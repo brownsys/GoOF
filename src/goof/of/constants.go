@@ -154,3 +154,63 @@ const (
 	ReasonNoMatch uint8 = iota /* No matching flow. */
 	ReasonAction               /* Action explicitly output to controller. */
 )
+
+const (
+	FCAdd          = iota /* New flow. */
+	FCModify              /* Modify all matching flows. */
+	FCModifyStrict        /* Modify entry strictly matching wildcards */
+	FCDelete              /* Delete all matching flows. */
+	FCDeleteStrict        /* Strictly match wildcards and priority. */
+)
+
+/* Flow wildcards. */
+const (
+	FwInPort  uint32 = 1 << 0 /* Switch input port. */
+	FwDlVlan  uint32 = 1 << 1 /* VLAN id. */
+	FwDlSrc   uint32 = 1 << 2 /* Ethernet source address. */
+	FwDlDst   uint32 = 1 << 3 /* Ethernet destination address. */
+	FwDlType  uint32 = 1 << 4 /* Ethernet frame type. */
+	FwNwProto uint32 = 1 << 5 /* IP protocol. */
+	FwTpSrc   uint32 = 1 << 6 /* TCP/UDP source port. */
+	FwTpDst   uint32 = 1 << 7 /* TCP/UDP destination port. */
+
+	/* IP source address wildcard bit count.  0 is exact match 1 ignores the
+	 * LSB 2 ignores the 2 least-significant bits ... 32 and higher wildcard
+	 * the entire field.  This is the *opposite* of the usual convention where
+	 * e.g. /24 indicates that 8 bits (not 24 bits) are wildcarded. */
+	FwNwSrcShift uint32 = 8
+	FwNwSrcBits  uint32 = 6
+	FwNwSrcMask  uint32 = ((1 << FwNwSrcBits) - 1) << FwNwSrcShift
+	FwNwSrcAll   uint32 = 32 << FwNwSrcShift
+
+	/* IP destination address wildcard bit count.  Same format as source. */
+	FwNwDstShift uint32 = 14
+	FwNwDstBits  uint32 = 6
+	FwNwDstMask  uint32 = ((1 << FwNwDstBits) - 1) << FwNwDstShift
+	FwNwDstAll   uint32 = 32 << FwNwDstShift
+
+	FwDlVlanPcp uint32 = 1 << 20 /* VLAN priority. */
+	FwNwTos      uint32 = 1 << 21 /* IP ToS (DSCP field 6 bits). */
+	FwAll uint32 = ((1 << 22) - 1) // Wildcard all fields
+)
+
+/* The wildcards for ICMP type and code fields use the transport source
+ * and destination port fields respectively. */
+const FW_ICMP_TYPE = FwTpSrc
+const FW_ICMP_CODE = FwTpDst
+
+/* Values below this cutoff are 802.3 packets and the two bytes
+ * following MAC addresses are used as a frame length.  Otherwise the
+ * two bytes are used as the Ethernet type.
+ */
+const OFP_DL_TYPE_ETH2_CUTOFF = 0x0600
+
+/* Value of dl_type to indicate that the frame does not include an
+ * Ethernet type.
+ */
+const OFP_DL_TYPE_NOT_ETH_TYPE = 0x05ff
+
+/* The VLAN id is 12-bits so we can use the entire 16 bits to indicate
+ * special conditions.  All ones indicates that no VLAN id was set.
+ */
+const OFP_VLAN_NONE = 0xffff
