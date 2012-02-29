@@ -5,12 +5,11 @@ import (
   "log"
   "goof/of"
   "os"
-  "goof/packets"
   "runtime/pprof"
 )
 
 // Exactly match ethernet frame type, and src and dst addresses
-const wildcards = of.FwAll ^ of.FwNwSrcAll ^ of.FwNwDstAll
+const wildcards = of.FwAll ^ of.FwDlSrc ^ of.FwDlDst
 
 func newSwitch(sw *controller.Switch) {
   defer func() {
@@ -19,21 +18,17 @@ func newSwitch(sw *controller.Switch) {
   }()
 
   // Learning switch
-  routes := make(map[uint32]uint16, 1000)
-  
+  routes := make(map[[of.EthAlen]uint8]uint16, 1000)
 
   sw.HandlePacketIn = func(msg *of.PacketIn) {
-    switch f := msg.EthFrame.(type) {
-    case *packets.IPFragment:
-      routes[f.SrcAddr] = msg.InPort
-      outPort, found := routes[f.DstAddr]
+    routes[msg.EthFrame.SrcMAC] = msg.InPort
+      outPort, found := routes[msg.EthFrame.DstMAC]
       if !found {
         err := sw.Send(&of.FlowMod{
           Xid: msg.Xid,
           Match: of.Match{Wildcards: wildcards,
-                          EthFrameType: uint16(packets.EthTypeIP),
-                          NwSrc: f.SrcAddr,
-                          NwDst: f.DstAddr},
+                          DlSrc: msg.EthFrame.SrcMAC,
+                          DlDst: msg.EthFrame.DstMAC},
           Flags: of.FCAdd,
           Actions: []of.Action{&of.ActionOutput{of.PortFlood, 0}}})
         if err != nil {
@@ -42,12 +37,6 @@ func newSwitch(sw *controller.Switch) {
       } else {
         log.Printf("known, would send to %x", outPort)
       }
-      return
-    case *packets.EthernetFrame:
-      log.Printf("Unknown packet type: %x", f.Type)
-      return
-    }
-    log.Printf("No ethernet frame in PacketIn\n")
   }
 
   sw.Serve()

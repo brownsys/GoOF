@@ -3,18 +3,13 @@ package packets
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
+  "io"
 )
 
-type Packet interface {
-}
-
 type EthType uint16
-
 const EthTypeIP EthType = 0x0800
 
 type Protocol uint8
-
 const ProtocolTCP = 8
 
 type IPHeader struct {
@@ -44,45 +39,57 @@ type TCPHeader struct {
 }
 
 type IPFragment struct {
-	EthernetHeader
-	IPHeader
-	Tcp *TCPHeader
+	*IPHeader
+  Body interface{}
 }
 
-type EthernetFrame struct {
-	EthernetHeader
+type EthFrame struct {
+	*EthernetHeader
+  Body interface{}
 }
 
-func Parse(body []byte) (r interface{}, err error) {
+func ParseTCPHeader(buf io.Reader, h *IPHeader) (*TCPHeader, error) {
+  switch h.Protocol {
+  case ProtocolTCP:
+		var tcp TCPHeader
+		err := binary.Read(buf, binary.BigEndian, &tcp)
+		if err != nil {
+			return nil, err
+		}
+		return &tcp, nil
+  }
+  
+  return nil, nil
+}
+
+func ParseIPFragment(buf io.Reader, h *EthernetHeader) (*IPFragment, error) {
+	switch h.Type {
+	case EthTypeIP:
+		var ip IPHeader
+		err := binary.Read(buf, binary.BigEndian, &ip)
+		if err != nil {
+			return nil, err
+		}
+		optionsLen := ((ip.VersionIHL & 0xf) << 2) - IPHeaderSize
+		options := make([]byte, optionsLen)
+		buf.Read(options) // TODO: error checking?
+    
+    frag := &IPFragment{&ip, nil}
+    frag.Body, err = ParseTCPHeader(buf, &ip)
+    return frag, err
+	}
+
+  return nil, nil
+}
+
+func Parse(body []byte) (frame *EthFrame, err error) {
 	buf := bytes.NewBuffer(body)
 	var eth EthernetHeader
 	err = binary.Read(buf, binary.BigEndian, &eth)
 	if err != nil {
 		return
 	}
-	switch eth.Type {
-	case EthTypeIP:
-		var ip IPHeader
-		err = binary.Read(buf, binary.BigEndian, &ip)
-		if err != nil {
-			return
-		}
-		optionsLen := ((ip.VersionIHL & 0xf) << 2) - IPHeaderSize
-		options := make([]byte, optionsLen)
-		buf.Read(options) // TODO: error checking?
-
-		switch ip.Protocol {
-		case ProtocolTCP:
-			var tcp TCPHeader
-			err = binary.Read(buf, binary.BigEndian, &tcp)
-			if err != nil {
-				return
-			}
-			return &IPFragment{eth, ip, &tcp}, nil
-		default:
-			return &IPFragment{eth, ip, nil}, nil
-		}
-	}
-
-	return &EthernetFrame{eth}, errors.New("unknown ethernet type")
+  frame = &EthFrame{&eth, nil}
+  frame.Body, err = ParseIPFragment(buf, &eth)
+  return frame, err
 }
