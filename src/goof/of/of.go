@@ -21,7 +21,6 @@ type ToSwitch interface {
 
 type Action interface {
 	WriteAction(w io.Writer) error
-	ActionLen() uint16
 }
 
 var pad64 = make([]byte, 8, 8)
@@ -271,7 +270,7 @@ type PacketOut struct {
 func (m *PacketOut) actionsLen() uint16 {
 	size := uint16(0)
 	for _, a := range m.Actions {
-		size = size + a.ActionLen()
+		size = size + ActionLen(a)
 	}
 	return size
 }
@@ -354,7 +353,7 @@ type FlowMod struct {
 func (m *FlowMod) Write(w io.Writer) error {
 	var size uint16 = HeaderSize + 64
 	for _, a := range m.Actions {
-		size += a.ActionLen()
+		size += ActionLen(a)
 	}
 	h := &Header{OFP_VERSION, OFPT_FLOW_MOD, size, m.Xid}
 	binary.Write(w, binary.BigEndian, h)

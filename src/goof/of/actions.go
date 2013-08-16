@@ -25,8 +25,12 @@ const (
 
 func genericWriteAction(w io.Writer, a Action, t ActionType) error {
 	binary.Write(w, binary.BigEndian, t)
-	binary.Write(w, binary.BigEndian, a.ActionLen())
+	binary.Write(w, binary.BigEndian, ActionLen(a))
 	return binary.Write(w, binary.BigEndian, a)
+}
+
+func ActionLen(a Action) uint16 {
+    return (uint16) (4 + binary.Size(a))
 }
 
 /* Action structure for OFPAT_OUTPUT which sends packets out 'port'.
@@ -38,21 +42,13 @@ type ActionOutput struct {
 	MaxLen uint16 /* Max length to send to controller. */
 }
 
-func (m *ActionOutput) ActionLen() uint16 {
-	return 8
-}
-
 func (m *ActionOutput) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_OUTPUT)
 }
 
 type ActionVlanVid struct {
 	VlanVid uint16 /* VLAN id. */
-	pad     [2]uint8
-}
-
-func (m *ActionVlanVid) ActionLen() uint16 {
-	return 8
+	uint16
 }
 
 func (m *ActionVlanVid) WriteAction(w io.Writer) error {
@@ -69,10 +65,6 @@ func (m *ActionVlanPcp) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_SET_VLAN_PCP)
 }
 
-func (m *ActionVlanPcp) ActionLen() uint16 {
-	return 8
-}
-
 type ActionSetDlSrc struct {
 	DlAddr [EthAlen]uint8 /* Ethernet address. */
 	uint32
@@ -81,10 +73,6 @@ type ActionSetDlSrc struct {
 
 func (m *ActionSetDlSrc) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_SET_DL_SRC)
-}
-
-func (m *ActionSetDlSrc) ActionLen() uint16 {
-	return 16
 }
 
 type ActionSetDlDst struct {
@@ -97,16 +85,8 @@ func (m *ActionSetDlDst) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_SET_DL_DST)
 }
 
-func (m *ActionSetDlDst) ActionLen() uint16 {
-	return 16
-}
-
 type ActionNwAddrSrc struct {
 	NwAddr uint32 /* IP address. */
-}
-
-func (m *ActionNwAddrSrc) ActionLen() uint16 {
-	return 8
 }
 
 func (m *ActionNwAddrSrc) WriteAction(w io.Writer) error {
@@ -115,10 +95,6 @@ func (m *ActionNwAddrSrc) WriteAction(w io.Writer) error {
 
 type ActionNwAddrDst struct {
 	NwAddr uint32 /* IP address. */
-}
-
-func (m *ActionNwAddrDst) ActionLen() uint16 {
-	return 8
 }
 
 func (m *ActionNwAddrDst) WriteAction(w io.Writer) error {
@@ -130,10 +106,6 @@ type ActionTpPortSrc struct {
 	uint16
 }
 
-func (m *ActionTpPortSrc) ActionLen() uint16 {
-	return 8
-}
-
 func (m *ActionTpPortSrc) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_SET_TP_SRC)
 }
@@ -141,10 +113,6 @@ func (m *ActionTpPortSrc) WriteAction(w io.Writer) error {
 type ActionTpPortDst struct {
 	TpPort uint16 /* TCP/UDP port. */
 	uint16
-}
-
-func (m *ActionTpPortDst) ActionLen() uint16 {
-	return 8
 }
 
 func (m *ActionTpPortDst) WriteAction(w io.Writer) error {
@@ -158,10 +126,18 @@ type ActionNwTos struct {
 	uint8
 }
 
-func (m *ActionNwTos) ActionLen() uint16 {
-	return 8
-}
-
 func (m *ActionNwTos) WriteAction(w io.Writer) error {
 	return genericWriteAction(w, m, OFPAT_SET_NW_TOS)
+}
+
+/* Action structure for OFPAT_ENQUEUE. */
+type ActionEnqueue struct {
+	Port     uint16 /* Output port. */
+    uint32
+    uint16
+    QueueId  uint32 /* Where to enqueue the packets. */
+}
+
+func (m *ActionEnqueue) WriteAction(w io.Writer) error {
+    return genericWriteAction(w, m, OFPAT_ENQUEUE)
 }
