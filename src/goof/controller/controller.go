@@ -51,7 +51,7 @@ func NewController() *Controller {
 }
 
 func (self *Controller) Accept(port int, h NewSwitchHandler) error {
-	listener, err := net.ListenTCP("tcp", &net.TCPAddr{net.IPv4(0, 0, 0, 0), port})
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: port})
 	if err != nil {
 		return err
 	}
